@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
+import { db } from "@/src/firebase"
+import { collection, getDocs, addDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Search, Briefcase, Plus } from "lucide-react"
@@ -43,90 +45,22 @@ export function DepartmentList({ onSelectDepartment, selectedDepartmentId }: Dep
   })
 
   useEffect(() => {
-    // Load departments from localStorage
-    const loadDepartments = () => {
-      const savedDepartments = localStorage.getItem("departments")
-      if (savedDepartments) {
-        const parsedDepartments = JSON.parse(savedDepartments)
-        setDepartments(parsedDepartments)
+    const loadDepartments = async () => {
+      const departmentsCollection = collection(db, "departments")
+      const departmentSnapshot = await getDocs(departmentsCollection)
+      const departmentList = departmentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Department[]
+      setDepartments(departmentList)
 
-        // Select the first department if none is selected
-        if (parsedDepartments.length > 0 && !selectedDepartmentId) {
-          onSelectDepartment(parsedDepartments[0].id)
-        }
-      } else {
-        // If no departments exist, create default ones
-        const defaultDepartments = [
-          {
-            id: "dept-1",
-            name: "Human Resources",
-            description: "Manages employee relations, recruitment, and workplace policies",
-            employeeCount: 4,
-            budget: "$120,000",
-            manager: "Sarah Johnson",
-            color: "blue",
-          },
-          {
-            id: "dept-2",
-            name: "Finance",
-            description: "Handles financial planning, accounting, and budget management",
-            employeeCount: 6,
-            budget: "$180,000",
-            manager: "Michael Chen",
-            color: "green",
-          },
-          {
-            id: "dept-3",
-            name: "Marketing",
-            description: "Develops and implements marketing strategies and campaigns",
-            employeeCount: 5,
-            budget: "$150,000",
-            manager: "Jessica Williams",
-            color: "purple",
-          },
-          {
-            id: "dept-4",
-            name: "Engineering",
-            description: "Designs, develops, and maintains software and hardware systems",
-            employeeCount: 12,
-            budget: "$350,000",
-            manager: "David Rodriguez",
-            color: "orange",
-          },
-          {
-            id: "dept-5",
-            name: "Customer Support",
-            description: "Provides assistance and technical support to customers",
-            employeeCount: 8,
-            budget: "$200,000",
-            manager: "Emily Taylor",
-            color: "pink",
-          },
-        ]
-
-        localStorage.setItem("departments", JSON.stringify(defaultDepartments))
-        setDepartments(defaultDepartments)
-        onSelectDepartment(defaultDepartments[0].id)
+      // Select the first department if none is selected
+      if (departmentList.length > 0 && !selectedDepartmentId) {
+        onSelectDepartment(departmentList[0].id)
       }
     }
 
-    // Load departments initially
     loadDepartments()
-
-    // Set up event listener for department updates
-    const handleDepartmentsUpdated = () => {
-      loadDepartments()
-    }
-
-    window.addEventListener("departmentsUpdated", handleDepartmentsUpdated)
-
-    // Clean up event listener
-    return () => {
-      window.removeEventListener("departmentsUpdated", handleDepartmentsUpdated)
-    }
   }, [onSelectDepartment, selectedDepartmentId])
 
-  const handleAddDepartment = () => {
+  const handleAddDepartment = async () => {
     // Generate a random color for the new department
     const colors = ["blue", "green", "purple", "orange", "pink", "teal", "indigo", "red"]
     const randomColor = colors[Math.floor(Math.random() * colors.length)]
@@ -142,14 +76,8 @@ export function DepartmentList({ onSelectDepartment, selectedDepartmentId }: Dep
       color: randomColor,
     }
 
-    // Get existing departments
-    const existingDepartments = JSON.parse(localStorage.getItem("departments") || "[]")
-
-    // Add new department
-    const updatedDepartments = [...existingDepartments, newDepartmentData]
-
-    // Save updated departments
-    localStorage.setItem("departments", JSON.stringify(updatedDepartments))
+    // Add new department to Firestore
+    await addDoc(collection(db, "departments"), newDepartmentData)
 
     // Notify components of the update
     window.dispatchEvent(new Event("departmentsUpdated"))

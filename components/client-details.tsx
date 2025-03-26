@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-type Client = {
+export type Client = {
   id: string
   name: string
   company: string

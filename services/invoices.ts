@@ -1,74 +1,47 @@
-import { createInvoice, deleteInvoice, getInvoices, updateInvoice } from "@/lib/supabase"
+import { db } from "@/components/firebase"; // Import Firestore
+import { doc, setDoc, getDocs, collection, deleteDoc } from "firebase/firestore";
 
 export type Invoice = {
-  id: string
-  buyerName: string
-  invoiceNumber: string
-  amount: string
-  date: string
-  timestamp: string
-  shipmentStatus?: string
-  shipmentDate?: string
-  shipmentMethod?: string
+  id: string;
+  buyerName: string;
+  invoiceNumber: string;
+  amount: string;
+  date: string;
+  timestamp: string;
+  shipmentStatus?: string;
+  shipmentDate?: string;
+  shipmentMethod?: string;
   items?: Array<{
-    name: string
-    quantity: number
-    price: string
-  }>
-}
+    name: string;
+    quantity: number;
+    price: string;
+  }>;
+};
 
 export async function getAllInvoices() {
-  const { data, error } = await getInvoices()
-
-  if (error) {
-    console.error("Error fetching invoices:", error)
-    return []
-  }
-
-  return data as Invoice[]
+  const invoicesCollection = collection(db, "invoices");
+  const invoiceSnapshot = await getDocs(invoicesCollection);
+  return invoiceSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Invoice[];
 }
 
 export async function addInvoice(invoice: Omit<Invoice, "id">) {
-  const { data, error } = await createInvoice(invoice)
-
-  if (error) {
-    console.error("Error creating invoice:", error)
-    throw new Error(error.message)
-  }
-
-  return data
+  const newInvoiceRef = doc(collection(db, "invoices"));
+  await setDoc(newInvoiceRef, invoice);
+  return { id: newInvoiceRef.id, ...invoice };
 }
 
 export async function updateInvoiceById(id: string, updates: Partial<Invoice>) {
-  const { data, error } = await updateInvoice(id, updates)
-
-  if (error) {
-    console.error("Error updating invoice:", error)
-    throw new Error(error.message)
-  }
-
-  return data
+  const invoiceRef = doc(db, "invoices", id);
+  await setDoc(invoiceRef, updates, { merge: true });
 }
 
 export async function removeInvoice(id: string) {
-  const { data, error } = await deleteInvoice(id)
-
-  if (error) {
-    console.error("Error deleting invoice:", error)
-    throw new Error(error.message)
-  }
-
-  return data
+  const invoiceRef = doc(db, "invoices", id);
+  await deleteDoc(invoiceRef);
 }
 
 export async function getInvoicesByClient(clientName: string) {
-  const { data, error } = await getInvoices()
-
-  if (error) {
-    console.error("Error fetching invoices by client:", error)
-    return []
-  }
-
-  return (data as Invoice[]).filter((invoice) => invoice.buyerName.toLowerCase() === clientName.toLowerCase())
+  const invoices = await getAllInvoices();
+  return invoices.filter((invoice) => invoice.buyerName.toLowerCase() === clientName.toLowerCase());
 }
 

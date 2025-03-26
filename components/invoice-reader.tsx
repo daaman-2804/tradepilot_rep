@@ -8,6 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Upload, Check } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { createWorker } from "tesseract.js"
+import { saveUserData } from "@/src/firestore" // Import Firestore function
+import { collection, addDoc } from "firebase/firestore" // Add Firestore imports
+import { db } from "@/src/firebase"
+import { Client } from "@/components/client-details" // Adjust the path if necessary
 
 export function InvoiceReader() {
   const [mounted, setMounted] = useState(false)
@@ -105,55 +109,27 @@ export function InvoiceReader() {
     }
   }
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (extractedData) {
-      // Get existing invoices
-      const existingInvoices = JSON.parse(localStorage.getItem("invoices") || "[]")
+      // Add new invoice to Firestore
+      const newInvoice = {
+        ...extractedData,
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+      };
 
-      // Add new invoice to the beginning of the array
-      const updatedInvoices = [
-        {
-          ...extractedData,
-          id: Date.now().toString(), // Add unique ID for deletion
-          timestamp: new Date().toISOString(),
-        },
-        ...existingInvoices,
-      ]
+      await addDoc(collection(db, "invoices"), newInvoice);
 
-      // Save updated invoices
-      localStorage.setItem("invoices", JSON.stringify(updatedInvoices))
-
-      // Check if client exists, if not create a new client
-      const clients = JSON.parse(localStorage.getItem("clients") || "[]")
-      const clientExists = clients.some(
-        (client: any) => client.name.toLowerCase() === extractedData.buyerName.toLowerCase(),
-      )
-
-      if (!clientExists && extractedData.buyerName !== "Unknown") {
-        // Create a new client
-        const newClient = {
-          id: Date.now().toString(),
-          name: extractedData.buyerName,
-          company: extractedData.company || extractedData.buyerName + " Inc.",
-          email: extractedData.email || `contact@${extractedData.buyerName.toLowerCase().replace(/\s+/g, "")}.com`,
-          phone: extractedData.phone || "000-000-0000",
-          address: extractedData.shippingAddress || "Unknown Address",
-          lastInvoice: new Date().toISOString(),
-        }
-
-        // Add new client
-        const updatedClients = [...clients, newClient]
-        localStorage.setItem("clients", JSON.stringify(updatedClients))
-
-        // Notify components of the client update
-        window.dispatchEvent(new Event("clientsUpdated"))
-      }
-
-      // Notify components of the invoice update
-      window.dispatchEvent(new Event("invoicesUpdated"))
-      setIsConfirmed(true)
+      // Dispatch event to update invoices
+      window.dispatchEvent(new Event("invoicesUpdated"));
+      setIsConfirmed(true);
     }
   }
+
+  const handleAddClient = async (e: React.FormEvent) => {
+    console.log("Add Client Button Clicked");
+    // ... rest of the code
+  };
 
   if (!mounted) {
     return null;
@@ -261,7 +237,6 @@ export function InvoiceReader() {
               onClick={handleConfirm}
               disabled={isConfirmed}
               className="w-full mt-6 bg-blue-600 hover:bg-blue-700"
-              suppressHydrationWarning
             >
               {isConfirmed ? "Confirmed" : "Confirm and Update Dashboard"}
               <Check className="ml-2 h-4 w-4" />

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Link from "next/link"
+import { auth, signInWithEmailAndPassword } from "@/src/firebase"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
@@ -25,15 +26,12 @@ export function LoginForm() {
     setLoading(true)
 
     try {
-      // For now, just simulate a successful login and redirect
-      // In a real app, you would call your authentication service here
-      setTimeout(() => {
-        router.push("/admin/dashboard")
-        setLoading(false)
-      }, 1000)
+      await signInWithEmailAndPassword(auth, email, password)
+      router.push("/admin/dashboard")
     } catch (err) {
       setError("An unexpected error occurred")
       console.error(err)
+    } finally {
       setLoading(false)
     }
   }

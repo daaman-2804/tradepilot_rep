@@ -3,12 +3,34 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, LineChart, PieChart } from "@/components/ui/chart"
+import { subscribeToUserData } from "@/src/firestore" // Import Firestore function
 
 type ClientAnalyticsProps = {
   clientId: string | null
 }
 
+// Define the expected type for user data
+type UserData = {
+  // Define the properties you expect in the user data
+  name: string;
+  email: string;
+  // Add other properties as needed
+}
+
 export function ClientAnalytics({ clientId }: ClientAnalyticsProps) {
+  const [userData, setUserData] = useState<UserData | null>(null); // Use the defined type
+
+  useEffect(() => {
+    if (!clientId) return;
+
+    const unsubscribe = subscribeToUserData(clientId, (data: UserData) => { // Explicitly define the type for data
+      setUserData(data);
+      // Process data for charts here
+    });
+
+    return () => unsubscribe();
+  }, [clientId]);
+
   const [spendingData, setSpendingData] = useState({
     labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
     datasets: [

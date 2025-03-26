@@ -16,6 +16,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { collection, getDocs, addDoc } from "firebase/firestore"
+import { db } from "@/src/firebase"
 
 type Client = {
   id: string
@@ -47,70 +49,38 @@ export function ClientList({ onSelectClient, selectedClientId }: ClientListProps
   })
 
   useEffect(() => {
-    // Load clients from localStorage
-    const loadClients = () => {
-      const savedClients = localStorage.getItem("clients")
-      if (savedClients) {
-        const parsedClients = JSON.parse(savedClients)
-        setClients(parsedClients)
+    const loadClients = async () => {
+      const clientsCollection = collection(db, "clients")
+      const clientSnapshot = await getDocs(clientsCollection)
+      const clientList = clientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Client[]
+      setClients(clientList)
 
-        // Select the first client if none is selected
-        if (parsedClients.length > 0 && !selectedClientId) {
-          onSelectClient(parsedClients[0].id)
-        }
+      // Select the first client if none is selected
+      if (clientList.length > 0 && !selectedClientId) {
+        onSelectClient(clientList[0].id)
       }
     }
 
-    // Load clients initially
     loadClients()
-
-    // Set up event listener for client updates
-    const handleClientsUpdated = () => {
-      loadClients()
-    }
-
-    window.addEventListener("clientsUpdated", handleClientsUpdated)
-    window.addEventListener("invoicesUpdated", handleClientsUpdated)
-
-    // Clean up event listener
-    return () => {
-      window.removeEventListener("clientsUpdated", handleClientsUpdated)
-      window.removeEventListener("invoicesUpdated", handleClientsUpdated)
-    }
   }, [onSelectClient, selectedClientId])
 
-  const handleAddClient = (e: React.FormEvent) => {
+  const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Create a new client object
     const newClientData: Client = {
       id: Date.now().toString(),
       ...newClient,
     }
 
-    // Get existing clients
-    const existingClients = JSON.parse(localStorage.getItem("clients") || "[]")
-
-    // Add new client
-    const updatedClients = [...existingClients, newClientData]
-
-    // Save updated clients
-    localStorage.setItem("clients", JSON.stringify(updatedClients))
+    // Add new client to Firestore
+    await addDoc(collection(db, "clients"), newClientData)
 
     // Notify components of the update
     window.dispatchEvent(new Event("clientsUpdated"))
 
-    // Close the modal
+    // Close the modal and reset form
     setShowAddClientModal(false)
-
-    // Reset form
-    setNewClient({
-      name: "",
-      company: "",
-      email: "",
-      phone: "",
-      address: "",
-    })
+    setNewClient({ name: "", company: "", email: "", phone: "", address: "" })
 
     // Select the new client
     onSelectClient(newClientData.id)

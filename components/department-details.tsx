@@ -28,6 +28,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { db } from "@/src/firebase"
+import { doc, getDoc } from "firebase/firestore"
 
 type Department = {
   id: string
@@ -73,31 +75,36 @@ export function DepartmentDetails({ departmentId }: DepartmentDetailsProps) {
   })
 
   useEffect(() => {
-    if (!departmentId) return
+    const loadDepartment = async () => {
+      if (!departmentId) return
 
-    // Load department data
-    const departments = JSON.parse(localStorage.getItem("departments") || "[]")
-    const foundDepartment = departments.find((d: Department) => d.id === departmentId)
+      const departmentDoc = doc(db, "departments", departmentId)
+      const departmentSnapshot = await getDoc(departmentDoc)
 
-    if (foundDepartment) {
-      setDepartment(foundDepartment)
-      setEditDepartment({
-        name: foundDepartment.name,
-        description: foundDepartment.description,
-        budget: foundDepartment.budget,
-        manager: foundDepartment.manager,
-      })
+      if (departmentSnapshot.exists()) {
+        setDepartment({ id: departmentSnapshot.id, ...departmentSnapshot.data() } as Department)
+        setEditDepartment({
+          name: departmentSnapshot.data().name,
+          description: departmentSnapshot.data().description,
+          budget: departmentSnapshot.data().budget,
+          manager: departmentSnapshot.data().manager,
+        })
 
-      // Load all employees
-      const allEmployeesData = JSON.parse(localStorage.getItem("employees") || "[]")
-      setAllEmployees(allEmployeesData)
+        // Load all employees
+        const allEmployeesData = JSON.parse(localStorage.getItem("employees") || "[]")
+        setAllEmployees(allEmployeesData)
 
-      // Filter employees for this department
-      const departmentEmployeesData = allEmployeesData.filter(
-        (employee: Employee) => employee.department === foundDepartment.name,
-      )
-      setDepartmentEmployees(departmentEmployeesData)
+        // Filter employees for this department
+        const departmentEmployeesData = allEmployeesData.filter(
+          (employee: Employee) => employee.department === departmentSnapshot.data().name,
+        )
+        setDepartmentEmployees(departmentEmployeesData)
+      } else {
+        console.error("No such document!")
+      }
     }
+
+    loadDepartment()
   }, [departmentId])
 
   // Initialize with sample employees if none exist

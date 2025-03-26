@@ -1,19 +1,65 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { db } from "@/src/firebase"
+import { doc, getDoc } from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileIcon, MailIcon, MapPinIcon, PhoneIcon, UserIcon } from "lucide-react"
 
-export function EmployeeDetails() {
+type Employee = {
+  id: string
+  name: string
+  avatar: string
+  title: string
+  department: string
+  location: string
+  salary: string
+  startDate: string
+  status: string
+}
+
+type EmployeeDetailsProps = {
+  employeeId: string | null
+}
+
+export function EmployeeDetails({ employeeId }: EmployeeDetailsProps) {
+  const [employee, setEmployee] = useState<Employee | null>(null)
+
+  useEffect(() => {
+    const loadEmployee = async () => {
+      if (employeeId === null) return
+
+      const employeeDoc = doc(db, "employees", employeeId)
+      const employeeSnapshot = await getDoc(employeeDoc)
+
+      if (employeeSnapshot.exists()) {
+        const employeeData = employeeSnapshot.data() as Employee
+        const { id, ...rest } = employeeData;
+        setEmployee({ id: employeeSnapshot.id, ...rest });
+      } else {
+        console.error("No such document!")
+      }
+    }
+
+    loadEmployee()
+  }, [employeeId])
+
+  if (!employee) {
+    return <div>Loading...</div>
+  }
+
   return (
     <Card>
       <CardHeader className="relative pb-0">
         <div className="absolute inset-0 h-32 bg-gradient-to-r from-amber-500 to-orange-500 rounded-t-lg"></div>
         <div className="relative flex flex-col items-center pt-16">
           <Avatar className="h-20 w-20 border-4 border-background">
-            <AvatarImage src="/placeholder.svg?height=80&width=80" alt="Amélie Laurent" />
-            <AvatarFallback>AL</AvatarFallback>
+            <AvatarImage src={employee.avatar} alt={employee.name} />
+            <AvatarFallback>{employee.name.charAt(0)}</AvatarFallback>
           </Avatar>
-          <CardTitle className="mt-4 text-xl">Amélie Laurent</CardTitle>
-          <p className="text-sm text-muted-foreground">UX Designer</p>
+          <CardTitle className="mt-4 text-xl">{employee.name}</CardTitle>
+          <p className="text-sm text-muted-foreground">{employee.title}</p>
         </div>
       </CardHeader>
       <CardContent className="pt-6">
@@ -24,43 +70,36 @@ export function EmployeeDetails() {
               <div className="flex items-center gap-2">
                 <UserIcon className="h-4 w-4 text-muted-foreground" />
                 <div className="flex justify-between w-full">
-                  <span className="text-sm text-muted-foreground">Birthday</span>
-                  <span className="text-sm">26 September 1998</span>
+                  <span className="text-sm text-muted-foreground">Department</span>
+                  <span className="text-sm">{employee.department}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <PhoneIcon className="h-4 w-4 text-muted-foreground" />
                 <div className="flex justify-between w-full">
                   <span className="text-sm text-muted-foreground">Phone number</span>
-                  <span className="text-sm">+33 1 70 36 39 50</span>
+                  <span className="text-sm">{employee.location}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <MailIcon className="h-4 w-4 text-muted-foreground" />
                 <div className="flex justify-between w-full">
                   <span className="text-sm text-muted-foreground">E-Mail</span>
-                  <span className="text-sm">amelielaurent88@gmail.com</span>
+                  <span className="text-sm">{employee.salary}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <UserIcon className="h-4 w-4 text-muted-foreground" />
                 <div className="flex justify-between w-full">
-                  <span className="text-sm text-muted-foreground">Citizenship</span>
-                  <span className="text-sm">France</span>
+                  <span className="text-sm text-muted-foreground">Start Date</span>
+                  <span className="text-sm">{employee.startDate}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <MapPinIcon className="h-4 w-4 text-muted-foreground" />
                 <div className="flex justify-between w-full">
-                  <span className="text-sm text-muted-foreground">City</span>
-                  <span className="text-sm">Paris</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPinIcon className="h-4 w-4 text-muted-foreground" />
-                <div className="flex justify-between w-full">
-                  <span className="text-sm text-muted-foreground">Address</span>
-                  <span className="text-sm">95700 Roissy-en-France</span>
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  <span className="text-sm">{employee.status}</span>
                 </div>
               </div>
             </div>

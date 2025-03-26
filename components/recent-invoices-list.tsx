@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { collection, getDocs } from "firebase/firestore"
+import { db } from "@/src/firebase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatDistanceToNow } from "date-fns"
 
@@ -10,42 +12,36 @@ type Invoice = {
   invoiceNumber: string
   amount: string
   date: string
-  timestamp: string
+  timestamp?: string
 }
 
 export function RecentInvoicesList() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
 
-  useEffect(() => {
-    // Load invoices from localStorage
-    const loadInvoices = () => {
-      const savedInvoices = localStorage.getItem("invoices")
-      if (savedInvoices) {
-        setInvoices(JSON.parse(savedInvoices))
-      }
-    }
+  const loadInvoices = async () => {
+    const invoicesCollection = collection(db, "invoices")
+    const invoiceSnapshot = await getDocs(invoicesCollection)
+    const invoiceList = invoiceSnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data(),
+      timestamp: doc.data().timestamp || new Date().toISOString() // Add a timestamp if not exists
+    })) as Invoice[]
+    setInvoices(invoiceList)
+  }
 
-    // Load invoices initially
+  useEffect(() => {
     loadInvoices()
 
-    // Set up event listener for invoice updates
     const handleInvoicesUpdated = () => {
       loadInvoices()
     }
 
     window.addEventListener("invoicesUpdated", handleInvoicesUpdated)
 
-    // Clean up event listener
     return () => {
       window.removeEventListener("invoicesUpdated", handleInvoicesUpdated)
     }
   }, [])
-
-  const handleDelete = (id: string) => {
-    const updatedInvoices = invoices.filter((invoice) => invoice.id !== id)
-    localStorage.setItem("invoices", JSON.stringify(updatedInvoices))
-    setInvoices(updatedInvoices)
-  }
 
   return (
     <Card className="bg-white/10 backdrop-blur-md border-white/20">
@@ -74,11 +70,6 @@ export function RecentInvoicesList() {
                       : "Unknown time"}
                   </p>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <button onClick={() => handleDelete(invoice.id)} className="text-white/50 hover:text-red-400 text-xs">
-                    Delete
-                  </button>
-                </div>
               </li>
             ))}
           </ul>
@@ -87,4 +78,3 @@ export function RecentInvoicesList() {
     </Card>
   )
 }
-

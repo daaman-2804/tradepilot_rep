@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { PencilIcon } from "@radix-ui/react-icons"
+import { Pencil1Icon } from "@radix-ui/react-icons"
 
 interface SalaryTableProps {
   readOnly?: boolean
@@ -90,7 +90,7 @@ export function SalaryTable({ readOnly = false }: SalaryTableProps) {
                 </div>
                 {!readOnly && (
                   <Button variant="ghost" size="icon">
-                    <PencilIcon className="h-4 w-4" />
+                    <Pencil1Icon className="h-4 w-4" />
                   </Button>
                 )}
               </div>

@@ -11,36 +11,27 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { auth, createUserWithEmailAndPassword } from "@/src/firebase"
 
 export function SignupForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match")
-      return
-    }
-
     setLoading(true)
 
     try {
-      // For now, just simulate a successful signup and redirect
-      // In a real app, you would call your authentication service here
-      setTimeout(() => {
-        router.push("/login")
-        setLoading(false)
-      }, 1000)
+      await createUserWithEmailAndPassword(auth, email, password)
+      router.push("/admin/dashboard")
     } catch (err) {
       setError("An unexpected error occurred")
       console.error(err)
+    } finally {
       setLoading(false)
     }
   }
@@ -53,7 +44,7 @@ export function SignupForm() {
           <span className="text-2xl font-bold">TradePilot</span>
         </div>
         <CardTitle className="text-2xl">Create an account</CardTitle>
-        <CardDescription>Enter your email and password to sign up</CardDescription>
+        <CardDescription>Enter your email and password to create an account</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {error && (
@@ -61,7 +52,7 @@ export function SignupForm() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSignup}>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -82,16 +73,6 @@ export function SignupForm() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm Password</Label>
-              <Input
-                id="confirm-password"
-                required
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
               />
             </div>
             <Button className="w-full" type="submit" disabled={loading}>

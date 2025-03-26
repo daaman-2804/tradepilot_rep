@@ -44,13 +44,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { db } from "@/src/firebase"
+import { doc, getDoc } from "firebase/firestore"
+
+type ProjectStatus = "Not Started" | "In Progress" | "On Hold" | "Completed" | "Cancelled"
+type ProjectPriority = "Low" | "Medium" | "High" | "Urgent"
 
 type Project = {
   id: string
   name: string
   description: string
-  status: "Not Started" | "In Progress" | "On Hold" | "Completed" | "Cancelled"
-  priority: "Low" | "Medium" | "High" | "Urgent"
+  status: ProjectStatus
+  priority: ProjectPriority
   startDate: string
   endDate: string
   budget: string
@@ -85,6 +90,11 @@ type ProjectDetailsProps = {
   projectId: string | null
 }
 
+type PartialProject = Partial<Omit<Project, 'status' | 'priority'>> & {
+  status?: ProjectStatus
+  priority?: ProjectPriority
+}
+
 export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [project, setProject] = useState<Project | null>(null)
   const [clients, setClients] = useState<any[]>([])
@@ -96,7 +106,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const [showAddTeamMemberModal, setShowAddTeamMemberModal] = useState(false)
   const [showDeleteProjectDialog, setShowDeleteProjectDialog] = useState(false)
 
-  const [editProject, setEditProject] = useState<Partial<Project>>({})
+  const [editProject, setEditProject] = useState<PartialProject>({})
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
@@ -111,27 +121,23 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   })
 
   useEffect(() => {
-    if (!projectId) return
+    const loadProject = async () => {
+      if (!projectId) return
 
-    // Load project data
-    const projects = JSON.parse(localStorage.getItem("projects") || "[]")
-    const foundProject = projects.find((p: Project) => p.id === projectId)
+      const projectDoc = doc(db, "projects", projectId)
+      const projectSnapshot = await getDoc(projectDoc)
 
-    if (foundProject) {
-      setProject(foundProject)
-      setEditProject({
-        name: foundProject.name,
-        description: foundProject.description,
-        status: foundProject.status,
-        priority: foundProject.priority,
-        startDate: foundProject.startDate,
-        endDate: foundProject.endDate,
-        budget: foundProject.budget,
-        clientId: foundProject.clientId,
-        departmentId: foundProject.departmentId,
-      })
+      if (projectSnapshot.exists()) {
+        setProject({ id: projectSnapshot.id, ...projectSnapshot.data() } as Project)
+      } else {
+        console.error("No such document!")
+      }
     }
 
+    loadProject()
+  }, [projectId])
+
+  useEffect(() => {
     // Load clients, departments, and employees
     const loadRelatedData = () => {
       const savedClients = localStorage.getItem("clients")
@@ -708,7 +714,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                         </div>
                       </div>
                       <div className="mt-3 flex justify-end">
-                        <Select value={task.status} onValueChange={(value) => handleUpdateTaskStatus(task.id, value)}>
+                        <Select value={task.status as ProjectStatus} onValueChange={(value) => handleUpdateTaskStatus(task.id, value)}>
                           <SelectTrigger className="w-[140px] h-8 text-xs">
                             <SelectValue placeholder="Update status" />
                           </SelectTrigger>
@@ -873,8 +879,8 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                 Status
               </Label>
               <Select
-                value={editProject.status}
-                onValueChange={(value) => setEditProject({ ...editProject, status: value })}
+                value={editProject.status as ProjectStatus}
+                onValueChange={(value) => setEditProject({ ...editProject, status: value as ProjectStatus })}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select status" />
@@ -893,8 +899,8 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                 Priority
               </Label>
               <Select
-                value={editProject.priority}
-                onValueChange={(value) => setEditProject({ ...editProject, priority: value })}
+                value={editProject.priority as ProjectPriority}
+                onValueChange={(value) => setEditProject({ ...editProject, priority: value as ProjectPriority })}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select priority" />

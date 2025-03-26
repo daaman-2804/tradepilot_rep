@@ -19,13 +19,19 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { db } from "@/src/firebase"
+import { collection, getDocs, addDoc } from "firebase/firestore"
+
+// Define the types for status and priority
+type ProjectStatus = "Not Started" | "In Progress" | "On Hold" | "Completed" | "Cancelled";
+type ProjectPriority = "Low" | "Medium" | "High" | "Urgent";
 
 type Project = {
   id: string
   name: string
   description: string
-  status: "Not Started" | "In Progress" | "On Hold" | "Completed" | "Cancelled"
-  priority: "Low" | "Medium" | "High" | "Urgent"
+  status: ProjectStatus
+  priority: ProjectPriority
   startDate: string
   endDate: string
   budget: string
@@ -42,7 +48,7 @@ type Task = {
   id: string
   title: string
   description: string
-  status: "To Do" | "In Progress" | "In Review" | "Completed"
+  status: "To Do" | "In Progress" | "In Review" | "Completed" | "On Hold"
   assigneeId?: string
   assigneeName?: string
   dueDate?: string
@@ -81,262 +87,26 @@ export function ProjectList({ onSelectProject, selectedProjectId }: ProjectListP
     departmentId: "",
   })
 
-  useEffect(() => {
-    // Load projects from localStorage
-    const loadProjects = () => {
-      const savedProjects = localStorage.getItem("projects")
-      if (savedProjects) {
-        const parsedProjects = JSON.parse(savedProjects)
-        setProjects(parsedProjects)
+  // Load projects from Firestore
+  const loadProjects = async () => {
+    const projectsCollection = collection(db, "projects")
+    const projectSnapshot = await getDocs(projectsCollection)
+    const projectList = projectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Project[]
+
+    setProjects(projectList)
 
         // Select the first project if none is selected
-        if (parsedProjects.length > 0 && !selectedProjectId) {
-          onSelectProject(parsedProjects[0].id)
-        }
-      } else {
-        // If no projects exist, create default ones
-        const defaultProjects = [
-          {
-            id: "proj-1",
-            name: "Website Redesign",
-            description: "Complete overhaul of the company website with new branding and improved UX",
-            status: "In Progress",
-            priority: "High",
-            startDate: "2024-01-15",
-            endDate: "2024-04-30",
-            budget: "$25,000",
-            clientId: "client-1",
-            clientName: "Acme Corporation",
-            departmentId: "dept-4",
-            departmentName: "Engineering",
-            progress: 45,
-            tasks: [
-              {
-                id: "task-1",
-                title: "Design mockups",
-                description: "Create design mockups for all main pages",
-                status: "Completed",
-                assigneeId: "1",
-                assigneeName: "Anatoly Belik",
-                dueDate: "2024-02-15",
-                priority: "High",
-              },
-              {
-                id: "task-2",
-                title: "Frontend development",
-                description: "Implement responsive frontend based on approved designs",
-                status: "In Progress",
-                assigneeId: "2",
-                assigneeName: "Ksenia Bator",
-                dueDate: "2024-03-30",
-                priority: "High",
-              },
-              {
-                id: "task-3",
-                title: "Backend integration",
-                description: "Connect frontend to CMS and other backend services",
-                status: "To Do",
-                assigneeId: "3",
-                assigneeName: "Bogdan Nikitin",
-                dueDate: "2024-04-15",
-                priority: "Medium",
-              },
-            ],
-            teamMembers: [
-              {
-                id: "1",
-                name: "Anatoly Belik",
-                role: "Lead Designer",
-                avatar: "/placeholder.svg?height=40&width=40",
-              },
-              {
-                id: "2",
-                name: "Ksenia Bator",
-                role: "Frontend Developer",
-                avatar: "/placeholder.svg?height=40&width=40",
-              },
-              {
-                id: "3",
-                name: "Bogdan Nikitin",
-                role: "Backend Developer",
-                avatar: "/placeholder.svg?height=40&width=40",
-              },
-            ],
-          },
-          {
-            id: "proj-2",
-            name: "Mobile App Development",
-            description: "Develop a new mobile app for customer engagement and loyalty program",
-            status: "Not Started",
-            priority: "Medium",
-            startDate: "2024-04-01",
-            endDate: "2024-08-31",
-            budget: "$75,000",
-            clientId: "client-2",
-            clientName: "TechSolutions Inc.",
-            departmentId: "dept-4",
-            departmentName: "Engineering",
-            progress: 0,
-            tasks: [
-              {
-                id: "task-4",
-                title: "Requirements gathering",
-                description: "Collect and document all app requirements",
-                status: "To Do",
-                assigneeId: "4",
-                assigneeName: "Arsen Yatsenko",
-                dueDate: "2024-04-15",
-                priority: "High",
-              },
-              {
-                id: "task-5",
-                title: "UI/UX design",
-                description: "Create app wireframes and UI design",
-                status: "To Do",
-                assigneeId: "1",
-                assigneeName: "Anatoly Belik",
-                dueDate: "2024-05-15",
-                priority: "Medium",
-              },
-            ],
-            teamMembers: [
-              {
-                id: "3",
-                name: "Bogdan Nikitin",
-                role: "Mobile Lead",
-                avatar: "/placeholder.svg?height=40&width=40",
-              },
-              {
-                id: "4",
-                name: "Arsen Yatsenko",
-                role: "Project Manager",
-                avatar: "/placeholder.svg?height=40&width=40",
-              },
-              {
-                id: "1",
-                name: "Anatoly Belik",
-                role: "UI/UX Designer",
-                avatar: "/placeholder.svg?height=40&width=40",
-              },
-            ],
-          },
-          {
-            id: "proj-3",
-            name: "Marketing Campaign",
-            description: "Q2 marketing campaign for new product launch",
-            status: "On Hold",
-            priority: "Urgent",
-            startDate: "2024-03-01",
-            endDate: "2024-06-30",
-            budget: "$35,000",
-            clientId: "client-3",
-            clientName: "Global Retail Ltd.",
-            departmentId: "dept-3",
-            departmentName: "Marketing",
-            progress: 25,
-            tasks: [
-              {
-                id: "task-6",
-                title: "Campaign strategy",
-                description: "Develop comprehensive marketing strategy",
-                status: "Completed",
-                assigneeId: "6",
-                assigneeName: "Yulia Polishchuk",
-                dueDate: "2024-03-15",
-                priority: "Urgent",
-              },
-              {
-                id: "task-7",
-                title: "Content creation",
-                description: "Create all campaign content including videos and graphics",
-                status: "In Progress",
-                assigneeId: "5",
-                assigneeName: "Daria Yurchenko",
-                dueDate: "2024-04-15",
-                priority: "High",
-              },
-              {
-                id: "task-8",
-                title: "Media buying",
-                description: "Secure advertising placements across channels",
-                status: "On Hold",
-                assigneeId: "4",
-                assigneeName: "Arsen Yatsenko",
-                dueDate: "2024-05-01",
-                priority: "Medium",
-              },
-            ],
-            teamMembers: [
-              {
-                id: "6",
-                name: "Yulia Polishchuk",
-                role: "Marketing Director",
-                avatar: "/placeholder.svg?height=40&width=40",
-              },
-              {
-                id: "5",
-                name: "Daria Yurchenko",
-                role: "Content Specialist",
-                avatar: "/placeholder.svg?height=40&width=40",
-              },
-              {
-                id: "4",
-                name: "Arsen Yatsenko",
-                role: "Media Buyer",
-                avatar: "/placeholder.svg?height=40&width=40",
-              },
-            ],
-          },
-        ]
-
-        localStorage.setItem("projects", JSON.stringify(defaultProjects))
-        setProjects(defaultProjects)
-        onSelectProject(defaultProjects[0].id)
-      }
+    if (projectList.length > 0 && !selectedProjectId) {
+      onSelectProject(projectList[0].id)
     }
+  }
 
-    // Load clients, departments, and employees
-    const loadRelatedData = () => {
-      const savedClients = localStorage.getItem("clients")
-      if (savedClients) {
-        setClients(JSON.parse(savedClients))
-      }
-
-      const savedDepartments = localStorage.getItem("departments")
-      if (savedDepartments) {
-        setDepartments(JSON.parse(savedDepartments))
-      }
-
-      const savedEmployees = localStorage.getItem("employees")
-      if (savedEmployees) {
-        setEmployees(JSON.parse(savedEmployees))
-      }
-    }
-
-    // Load projects initially
-    loadProjects()
-    loadRelatedData()
-
-    // Set up event listener for project updates
-    const handleProjectsUpdated = () => {
-      loadProjects()
-    }
-
-    window.addEventListener("projectsUpdated", handleProjectsUpdated)
-    window.addEventListener("clientsUpdated", loadRelatedData)
-    window.addEventListener("departmentsUpdated", loadRelatedData)
-    window.addEventListener("employeesUpdated", loadRelatedData)
-
-    // Clean up event listeners
-    return () => {
-      window.removeEventListener("projectsUpdated", handleProjectsUpdated)
-      window.removeEventListener("clientsUpdated", loadRelatedData)
-      window.removeEventListener("departmentsUpdated", loadRelatedData)
-      window.removeEventListener("employeesUpdated", loadRelatedData)
-    }
+  useEffect(() => {
+    loadProjects() // Call loadProjects here
+    // Load related data...
   }, [onSelectProject, selectedProjectId])
 
-  const handleAddProject = (e: React.FormEvent) => {
+  const handleAddProject = async (e: React.FormEvent) => {
     e.preventDefault()
 
     // Find client and department names
@@ -345,11 +115,11 @@ export function ProjectList({ onSelectProject, selectedProjectId }: ProjectListP
 
     // Create a new project object
     const newProjectData: Project = {
-      id: `proj-${Date.now()}`,
+      id: "", // Firestore will generate the ID
       name: newProject.name,
       description: newProject.description,
-      status: newProject.status as any,
-      priority: newProject.priority as any,
+      status: newProject.status as ProjectStatus,
+      priority: newProject.priority as ProjectPriority,
       startDate: newProject.startDate,
       endDate: newProject.endDate,
       budget: newProject.budget.startsWith("$") ? newProject.budget : `$${newProject.budget}`,
@@ -362,17 +132,12 @@ export function ProjectList({ onSelectProject, selectedProjectId }: ProjectListP
       teamMembers: [],
     }
 
-    // Get existing projects
-    const existingProjects = JSON.parse(localStorage.getItem("projects") || "[]")
+    // Add new project to Firestore
+    const projectsCollection = collection(db, "projects")
+    await addDoc(projectsCollection, newProjectData)
 
-    // Add new project
-    const updatedProjects = [...existingProjects, newProjectData]
-
-    // Save updated projects
-    localStorage.setItem("projects", JSON.stringify(updatedProjects))
-
-    // Notify components of the update
-    window.dispatchEvent(new Event("projectsUpdated"))
+    // Reload projects after adding a new one
+    await loadProjects()
 
     // Close the modal
     setShowAddProjectModal(false)

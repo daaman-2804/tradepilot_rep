@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,9 +19,27 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { db } from "@/src/firebase"
+import { collection, getDocs, addDoc } from "firebase/firestore"
+
+// Define the expected type for an employee
+type Employee = {
+  id: string;
+  name: string;
+  avatar: string;
+  title: string;
+  department: string;
+  location: string;
+  flag: string;
+  salary: string;
+  startDate: string;
+  lifecycle: string;
+  status: string;
+}
 
 export function PeoplePageExact() {
-  const [selectedRows, setSelectedRows] = useState<number[]>([])
+  const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [showAddEmployeeModal, setShowAddEmployeeModal] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -36,97 +54,23 @@ export function PeoplePageExact() {
   })
 
   // Add state for employees
-  const [employees, setEmployees] = useState(() => {
-    // Try to load employees from localStorage
-    const savedEmployees = localStorage.getItem("employees")
-    if (savedEmployees) {
-      return JSON.parse(savedEmployees)
+  const [employees, setEmployees] = useState<Employee[]>([])
+
+  useEffect(() => {
+    const loadEmployees = async () => {
+      const employeesCollection = collection(db, "employees")
+      const employeeSnapshot = await getDocs(employeesCollection)
+      const employeeList = employeeSnapshot.docs.map(doc => {
+        const data = doc.data() as Omit<Employee, 'id'>; // Omit id from the data
+        return { id: doc.id, ...data }; // Add id separately
+      }) as Employee[];
+      setEmployees(employeeList)
     }
 
-    // Default employees if none in localStorage
-    return [
-      {
-        id: 1,
-        name: "Anatoly Belik",
-        avatar: "/placeholder.svg?height=40&width=40",
-        title: "Head of Design",
-        department: "Product",
-        location: "Stockholm",
-        flag: "🇸🇪",
-        salary: "$1,350",
-        startDate: "Mar 13, 2023",
-        lifecycle: "Hired",
-        status: "Invited",
-      },
-      {
-        id: 2,
-        name: "Ksenia Bator",
-        avatar: "/placeholder.svg?height=40&width=40",
-        title: "Fullstack Engineer",
-        department: "Engineering",
-        location: "Miami",
-        flag: "🇺🇸",
-        salary: "$1,500",
-        startDate: "Oct 13, 2023",
-        lifecycle: "Hired",
-        status: "Absent",
-      },
-      {
-        id: 3,
-        name: "Bogdan Nikitin",
-        avatar: "/placeholder.svg?height=40&width=40",
-        title: "Mobile Lead",
-        department: "Product",
-        location: "Kyiv",
-        flag: "🇺🇦",
-        salary: "$2,600",
-        startDate: "Nov 4, 2023",
-        lifecycle: "Employed",
-        status: "Invited",
-      },
-      {
-        id: 4,
-        name: "Arsen Yatsenko",
-        avatar: "/placeholder.svg?height=40&width=40",
-        title: "Sales Manager",
-        department: "Operations",
-        location: "Ottawa",
-        flag: "🇨🇦",
-        salary: "$900",
-        startDate: "Sep 4, 2021",
-        lifecycle: "Employed",
-        status: "Invited",
-      },
-      {
-        id: 5,
-        name: "Daria Yurchenko",
-        avatar: "/placeholder.svg?height=40&width=40",
-        title: "Network Engineer",
-        department: "Product",
-        location: "Sao Paulo",
-        flag: "🇧🇷",
-        salary: "$1,000",
-        startDate: "Feb 21, 2023",
-        lifecycle: "Hired",
-        status: "Invited",
-      },
-      {
-        id: 6,
-        name: "Yulia Polishchuk",
-        avatar: "/placeholder.svg?height=40&width=40",
-        title: "Head of Design",
-        department: "Product",
-        location: "London",
-        flag: "🇬🇧",
-        salary: "$1,700",
-        startDate: "Aug 2, 2024",
-        lifecycle: "Employed",
-        status: "Absent",
-      },
-    ]
-  })
+    loadEmployees()
+  }, [])
 
-  const toggleRowSelection = (id: number) => {
+  const toggleRowSelection = (id: string) => {
     if (selectedRows.includes(id)) {
       setSelectedRows(selectedRows.filter((rowId) => rowId !== id))
     } else {
@@ -134,14 +78,14 @@ export function PeoplePageExact() {
     }
   }
 
-  const isRowSelected = (id: number) => selectedRows.includes(id)
+  const isRowSelected = (id: string) => selectedRows.includes(id)
 
   const handleExport = () => {
     // Create CSV content
     const headers = ["Name", "Job Title", "Department", "Location", "Salary", "Start Date", "Lifecycle", "Status"]
     const csvContent = [
       headers.join(","),
-      ...employees.map((emp) =>
+      ...employees.map((emp: Employee) =>
         [emp.name, emp.title, emp.department, emp.location, emp.salary, emp.startDate, emp.lifecycle, emp.status].join(
           ",",
         ),
@@ -160,12 +104,11 @@ export function PeoplePageExact() {
     document.body.removeChild(link)
   }
 
-  const handleAddEmployee = (e: React.FormEvent) => {
+  const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Create a new employee object
-    const newEmployeeData = {
-      id: employees.length + 1,
+    const newEmployeeData: Employee = {
+      id: Date.now().toString(),
       name: newEmployee.name,
       avatar: "/placeholder.svg?height=40&width=40",
       title: newEmployee.title,
@@ -178,35 +121,22 @@ export function PeoplePageExact() {
       status: "Invited",
     }
 
-    // Add the new employee to the employees array
-    const updatedEmployees = [...employees, newEmployeeData]
-    setEmployees(updatedEmployees)
+    // Add new employee to Firestore
+    await addDoc(collection(db, "employees"), newEmployeeData)
 
-    // Save to localStorage
-    localStorage.setItem("employees", JSON.stringify(updatedEmployees))
-
-    // Dispatch event to notify other components
+    // Notify components of the update
     window.dispatchEvent(new Event("employeesUpdated"))
 
-    // Close the modal
+    // Close the modal and reset form
     setShowAddEmployeeModal(false)
-
-    // Reset form
-    setNewEmployee({
-      name: "",
-      title: "",
-      department: "Product",
-      location: "",
-      salary: "",
-    })
+    setNewEmployee({ name: "", title: "", department: "Product", location: "", salary: "" })
   }
 
   const filteredEmployees = searchTerm
-    ? employees.filter(
-        (emp) =>
-          emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          emp.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          emp.department.toLowerCase().includes(searchTerm.toLowerCase()),
+    ? employees.filter((emp: Employee) =>
+        emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.department.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     : employees
 

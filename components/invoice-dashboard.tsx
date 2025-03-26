@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, LineChart, PieChart } from "@/components/ui/chart"
 import { ArrowUpRight, DollarSign, FileText, TrendingUp } from "lucide-react"
+import { collection, getDocs } from "firebase/firestore"
+import { db } from "@/src/firebase"
 
 type Invoice = {
   id: string
@@ -32,28 +34,27 @@ export function InvoiceDashboard() {
   })
 
   useEffect(() => {
-    // Load invoices from localStorage
-    const loadInvoices = () => {
-      const savedInvoices = localStorage.getItem("invoices")
-      if (savedInvoices) {
-        const parsedInvoices = JSON.parse(savedInvoices)
-        setInvoices(parsedInvoices)
+    // Load invoices from Firebase
+    const loadInvoices = async () => {
+      const invoicesCollection = collection(db, "invoices")
+      const invoiceSnapshot = await getDocs(invoicesCollection)
+      const invoiceList = invoiceSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Invoice[]
+      setInvoices(invoiceList)
 
-        // Calculate total amount
-        let total = 0
-        parsedInvoices.forEach((invoice: Invoice) => {
-          const amount = Number.parseFloat(invoice.amount.replace(/[^0-9.-]+/g, ""))
-          if (!isNaN(amount)) {
-            total += amount
-          }
-        })
+      // Calculate total amount
+      let total = 0
+      invoiceList.forEach((invoice) => {
+        const amount = Number.parseFloat(invoice.amount.replace(/[^0-9.-]+/g, ""))
+        if (!isNaN(amount)) {
+          total += amount
+        }
+      })
 
-        setTotalAmount(total)
-        setAverageAmount(parsedInvoices.length > 0 ? total / parsedInvoices.length : 0)
+      setTotalAmount(total)
+      setAverageAmount(invoiceList.length > 0 ? total / invoiceList.length : 0)
 
-        // Update chart data
-        updateChartData(parsedInvoices)
-      }
+      // Update chart data
+      updateChartData(invoiceList)
     }
 
     // Update chart data based on invoices
