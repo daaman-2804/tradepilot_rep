@@ -6,6 +6,7 @@ import { BarChart, LineChart, PieChart } from "@/components/ui/chart"
 import { ArrowUpRight, DollarSign, FileText, TrendingUp } from "lucide-react"
 import { collection, getDocs } from "firebase/firestore"
 import { db } from "@/src/firebase"
+import { getAuth, onAuthStateChanged } from "firebase/auth"
 
 type Invoice = {
   id: string
@@ -14,6 +15,7 @@ type Invoice = {
   amount: string
   date: string
   timestamp: string
+  userId: string;
 }
 
 export function InvoiceDashboard() {
@@ -34,86 +36,81 @@ export function InvoiceDashboard() {
   })
 
   useEffect(() => {
-    // Load invoices from Firebase
-    const loadInvoices = async () => {
-      const invoicesCollection = collection(db, "invoices")
-      const invoiceSnapshot = await getDocs(invoicesCollection)
-      const invoiceList = invoiceSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Invoice[]
-      setInvoices(invoiceList)
+    const auth = getAuth()
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        await loadInvoices(user.uid)
+      } else {
+        setInvoices([])
+      }
+    })
 
-      // Calculate total amount
-      let total = 0
-      invoiceList.forEach((invoice) => {
-        const amount = Number.parseFloat(invoice.amount.replace(/[^0-9.-]+/g, ""))
-        if (!isNaN(amount)) {
-          total += amount
-        }
-      })
-
-      setTotalAmount(total)
-      setAverageAmount(invoiceList.length > 0 ? total / invoiceList.length : 0)
-
-      // Update chart data
-      updateChartData(invoiceList)
-    }
-
-    // Update chart data based on invoices
-    const updateChartData = (invoices: Invoice[]) => {
-      // Create a map of months to total amounts
-      const monthlyAmounts = new Map<number, number>()
-
-      invoices.forEach((invoice) => {
-        try {
-          const date = new Date(invoice.date)
-          const month = date.getMonth()
-          const amount = Number.parseFloat(invoice.amount.replace(/[^0-9.-]+/g, ""))
-
-          if (!isNaN(month) && !isNaN(amount)) {
-            const currentAmount = monthlyAmounts.get(month) || 0
-            monthlyAmounts.set(month, currentAmount + amount)
-          }
-        } catch (error) {
-          console.error("Error parsing date or amount:", error)
-        }
-      })
-
-      // Create chart data
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-      const data = Array(12).fill(0)
-
-      monthlyAmounts.forEach((amount, month) => {
-        data[month] = amount
-      })
-
-      setMonthlyData({
-        labels: months,
-        datasets: [
-          {
-            label: "Invoice Amount",
-            data,
-            backgroundColor: "rgba(59, 130, 246, 0.5)",
-            borderColor: "rgb(59, 130, 246)",
-            borderWidth: 2,
-          },
-        ],
-      })
-    }
-
-    // Load invoices initially
-    loadInvoices()
-
-    // Set up event listener for invoice updates
-    const handleInvoicesUpdated = () => {
-      loadInvoices()
+    const handleInvoicesUpdated = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        await loadInvoices(user.uid)
+      }
     }
 
     window.addEventListener("invoicesUpdated", handleInvoicesUpdated)
 
-    // Clean up event listener
     return () => {
+      unsubscribe()
       window.removeEventListener("invoicesUpdated", handleInvoicesUpdated)
     }
   }, [])
+
+  const loadInvoices = async (userId: string) => {
+    const invoicesCollection = collection(db, "users", userId, "invoices")
+    const invoiceSnapshot = await getDocs(invoicesCollection)
+    const invoiceList = invoiceSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Invoice[]
+    setInvoices(invoiceList)
+
+    // Calculate total amount
+    const total = invoiceList.reduce((acc, invoice) => {
+      const amount = parseFloat(invoice.amount.replace(/[^0-9.-]+/g, ""))
+      return acc + (isNaN(amount) ? 0 : amount)
+    }, 0)
+
+    setTotalAmount(total)
+    setAverageAmount(invoiceList.length > 0 ? total / invoiceList.length : 0)
+
+    // Update chart data
+    updateChartData(invoiceList)
+  }
+
+  const updateChartData = (invoices: Invoice[]) => {
+    const monthlyAmounts = new Map<number, number>()
+
+    invoices.forEach((invoice) => {
+      const date = new Date(invoice.date)
+      const month = date.getMonth()
+      const amount = parseFloat(invoice.amount.replace(/[^0-9.-]+/g, ""))
+
+      if (!isNaN(month) && !isNaN(amount)) {
+        const currentAmount = monthlyAmounts.get(month) || 0
+        monthlyAmounts.set(month, currentAmount + amount)
+      }
+    })
+
+    const data = Array(12).fill(0)
+    monthlyAmounts.forEach((amount, month) => {
+      data[month] = amount
+    })
+
+    setMonthlyData({
+      labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+      datasets: [
+        {
+          label: "Invoice Amount",
+          data,
+          backgroundColor: "rgba(59, 130, 246, 0.5)",
+          borderColor: "rgb(59, 130, 246)",
+          borderWidth: 2,
+        },
+      ],
+    })
+  }
 
   // Sample data for charts that doesn't change
   const vendorData = {

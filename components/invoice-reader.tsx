@@ -12,6 +12,8 @@ import { saveUserData } from "@/src/firestore" // Import Firestore function
 import { collection, addDoc } from "firebase/firestore" // Add Firestore imports
 import { db } from "@/src/firebase"
 import { Client } from "@/components/client-details" // Adjust the path if necessary
+import { getAuth, onAuthStateChanged } from "firebase/auth" // Add this import
+
 
 export function InvoiceReader() {
   const [mounted, setMounted] = useState(false)
@@ -20,8 +22,15 @@ export function InvoiceReader() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isConfirmed, setIsConfirmed] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null) // Add user state
 
   useEffect(() => {
+    const auth = getAuth()
+    
+    // Listen for authentication state changes
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user)
+    })
     setMounted(true)
   }, [])
 
@@ -110,21 +119,28 @@ export function InvoiceReader() {
   }
 
   const handleConfirm = async () => {
-    if (extractedData) {
-      // Add new invoice to Firestore
+    if (extractedData && currentUser) {
       const newInvoice = {
         ...extractedData,
+        userId: currentUser.uid, // Add user ID to the invoice
         id: Date.now().toString(),
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString(), // Ensure timestamp is stored
+        date: extractedData.date, // Add date field for display
       };
 
-      await addDoc(collection(db, "invoices"), newInvoice);
+      try {
+        // Save to a user-specific subcollection
+        await addDoc(collection(db, "users", currentUser.uid, "invoices"), newInvoice);
 
-      // Dispatch event to update invoices
-      window.dispatchEvent(new Event("invoicesUpdated"));
-      setIsConfirmed(true);
+        // Dispatch event to update invoices
+        window.dispatchEvent(new Event("invoicesUpdated"));
+        setIsConfirmed(true);
+      } catch (error) {
+        console.error("Error saving invoice:", error);
+        setError("Failed to save invoice");
+      }
     }
-  }
+  };
 
   const handleAddClient = async (e: React.FormEvent) => {
     console.log("Add Client Button Clicked");
@@ -247,4 +263,3 @@ export function InvoiceReader() {
     </div>
   )
 }
-
