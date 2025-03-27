@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -20,8 +19,9 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { db } from "@/src/firebase"
-import { collection, getDocs, addDoc } from "firebase/firestore"
+import { db, auth } from "@/src/firebase"
+import { collection, getDocs, addDoc, query, where } from "firebase/firestore"
+import { onAuthStateChanged } from "firebase/auth"
 
 // Define the expected type for an employee
 type Employee = {
@@ -43,6 +43,7 @@ export function PeoplePageExact() {
   const [showAddEmployeeModal, setShowAddEmployeeModal] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [currentUser, setCurrentUser] = useState<any>(null)
 
   // Form state for new employee
   const [newEmployee, setNewEmployee] = useState({
@@ -57,18 +58,31 @@ export function PeoplePageExact() {
   const [employees, setEmployees] = useState<Employee[]>([])
 
   useEffect(() => {
-    const loadEmployees = async () => {
-      const employeesCollection = collection(db, "employees")
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUser(user)
+        loadEmployees(user.uid)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  const loadEmployees = async (userId: string) => {
+    if (!userId) return
+
+    try {
+      const employeesCollection = collection(db, `users/${userId}/employees`)
       const employeeSnapshot = await getDocs(employeesCollection)
       const employeeList = employeeSnapshot.docs.map(doc => {
-        const data = doc.data() as Omit<Employee, 'id'>; // Omit id from the data
-        return { id: doc.id, ...data }; // Add id separately
-      }) as Employee[];
+        const data = doc.data() as Omit<Employee, 'id'>; 
+        return { id: doc.id, ...data } as Employee;
+      });
       setEmployees(employeeList)
+    } catch (error) {
+      console.error("Error loading employees:", error)
     }
-
-    loadEmployees()
-  }, [])
+  }
 
   const toggleRowSelection = (id: string) => {
     if (selectedRows.includes(id)) {
@@ -81,7 +95,6 @@ export function PeoplePageExact() {
   const isRowSelected = (id: string) => selectedRows.includes(id)
 
   const handleExport = () => {
-    // Create CSV content
     const headers = ["Name", "Job Title", "Department", "Location", "Salary", "Start Date", "Lifecycle", "Status"]
     const csvContent = [
       headers.join(","),
@@ -92,7 +105,6 @@ export function PeoplePageExact() {
       ),
     ].join("\n")
 
-    // Create download link
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
@@ -106,9 +118,13 @@ export function PeoplePageExact() {
 
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!currentUser) {
+      alert("You must be logged in to add an employee")
+      return
+    }
 
-    const newEmployeeData: Employee = {
-      id: Date.now().toString(),
+    const newEmployeeData: Omit<Employee, 'id'> = {
       name: newEmployee.name,
       avatar: "/placeholder.svg?height=40&width=40",
       title: newEmployee.title,
@@ -121,15 +137,21 @@ export function PeoplePageExact() {
       status: "Invited",
     }
 
-    // Add new employee to Firestore
-    await addDoc(collection(db, "employees"), newEmployeeData)
+    try {
+      // Add new employee to user-specific collection
+      const userEmployeesCollection = collection(db, `users/${currentUser.uid}/employees`)
+      await addDoc(userEmployeesCollection, newEmployeeData)
 
-    // Notify components of the update
-    window.dispatchEvent(new Event("employeesUpdated"))
+      // Reload employees to reflect the new addition
+      loadEmployees(currentUser.uid)
 
-    // Close the modal and reset form
-    setShowAddEmployeeModal(false)
-    setNewEmployee({ name: "", title: "", department: "Product", location: "", salary: "" })
+      // Close the modal and reset form
+      setShowAddEmployeeModal(false)
+      setNewEmployee({ name: "", title: "", department: "Product", location: "", salary: "" })
+    } catch (error) {
+      console.error("Error adding employee:", error)
+      alert("Failed to add employee")
+    }
   }
 
   const filteredEmployees = searchTerm
@@ -139,7 +161,6 @@ export function PeoplePageExact() {
         emp.department.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     : employees
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1565C0] to-[#E3F2FD]">
       {/* Header */}
@@ -580,4 +601,3 @@ export function PeoplePageExact() {
     </div>
   )
 }
-
