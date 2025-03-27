@@ -1,15 +1,26 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Box } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DepartmentList } from "@/components/department-list"
 import { DepartmentDetails } from "@/components/department-details"
+import { getAuth, onAuthStateChanged } from "firebase/auth"
 
 export function DepartmentsPage() {
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+
+  useEffect(() => {
+    const auth = getAuth()
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user)
+    })
+
+    return () => unsubscribe()
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1565C0] to-[#E3F2FD]">
@@ -113,11 +124,12 @@ export function DepartmentsPage() {
               <DepartmentList
                 onSelectDepartment={setSelectedDepartmentId}
                 selectedDepartmentId={selectedDepartmentId}
+                userId={currentUser?.uid}
               />
             </div>
             <div className="md:col-span-2">
               <h2 className="text-2xl font-semibold text-white mb-4">Department Details</h2>
-              <DepartmentDetails departmentId={selectedDepartmentId} />
+              <DepartmentDetails departmentId={selectedDepartmentId} userId={currentUser?.uid} />
             </div>
           </div>
         </div>

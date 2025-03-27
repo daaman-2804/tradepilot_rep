@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { db } from "@/src/firebase"
-import { collection, getDocs, addDoc } from "firebase/firestore"
+import { collection, getDocs, addDoc, query, where } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Search, Briefcase, Plus } from "lucide-react"
@@ -26,14 +26,20 @@ type Department = {
   budget: string
   manager: string
   color: string
+  userId: string
 }
 
 type DepartmentListProps = {
   onSelectDepartment: (departmentId: string) => void
   selectedDepartmentId: string | null
+  userId: string
 }
 
-export function DepartmentList({ onSelectDepartment, selectedDepartmentId }: DepartmentListProps) {
+export function DepartmentList({ 
+  onSelectDepartment, 
+  selectedDepartmentId, 
+  userId 
+}: DepartmentListProps) {
   const [departments, setDepartments] = useState<Department[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [showAddDepartmentModal, setShowAddDepartmentModal] = useState(false)
@@ -46,9 +52,15 @@ export function DepartmentList({ onSelectDepartment, selectedDepartmentId }: Dep
 
   useEffect(() => {
     const loadDepartments = async () => {
-      const departmentsCollection = collection(db, "departments")
+      // Use a query to fetch only departments for the specific user
+      const departmentsCollection = collection(db, "users", userId, "departments")
       const departmentSnapshot = await getDocs(departmentsCollection)
-      const departmentList = departmentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Department[]
+      const departmentList = departmentSnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(),
+        userId 
+      })) as Department[]
+      
       setDepartments(departmentList)
 
       // Select the first department if none is selected
@@ -58,7 +70,7 @@ export function DepartmentList({ onSelectDepartment, selectedDepartmentId }: Dep
     }
 
     loadDepartments()
-  }, [onSelectDepartment, selectedDepartmentId])
+  }, [userId, onSelectDepartment, selectedDepartmentId])
 
   const handleAddDepartment = async () => {
     // Generate a random color for the new department
@@ -66,21 +78,19 @@ export function DepartmentList({ onSelectDepartment, selectedDepartmentId }: Dep
     const randomColor = colors[Math.floor(Math.random() * colors.length)]
 
     // Create a new department object
-    const newDepartmentData: Department = {
-      id: `dept-${Date.now()}`,
+    const newDepartmentData: Omit<Department, 'id'> = {
       name: newDepartment.name,
       description: newDepartment.description,
       employeeCount: 0,
       budget: newDepartment.budget.startsWith("$") ? newDepartment.budget : `$${newDepartment.budget}`,
       manager: newDepartment.manager,
       color: randomColor,
+      userId: userId
     }
 
-    // Add new department to Firestore
-    await addDoc(collection(db, "departments"), newDepartmentData)
-
-    // Notify components of the update
-    window.dispatchEvent(new Event("departmentsUpdated"))
+    // Add new department to user-specific collection in Firestore
+    const departmentsCollection = collection(db, "users", userId, "departments")
+    const docRef = await addDoc(departmentsCollection, newDepartmentData)
 
     // Close the modal
     setShowAddDepartmentModal(false)
@@ -94,7 +104,7 @@ export function DepartmentList({ onSelectDepartment, selectedDepartmentId }: Dep
     })
 
     // Select the new department
-    onSelectDepartment(newDepartmentData.id)
+    onSelectDepartment(docRef.id)
   }
 
   const filteredDepartments = searchTerm
@@ -182,7 +192,7 @@ export function DepartmentList({ onSelectDepartment, selectedDepartmentId }: Dep
         </CardContent>
       </Card>
 
-      {/* Add Department Modal */}
+      {/* Add Department Modal (remains the same) */}
       <Dialog open={showAddDepartmentModal} onOpenChange={setShowAddDepartmentModal}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -255,4 +265,3 @@ export function DepartmentList({ onSelectDepartment, selectedDepartmentId }: Dep
     </>
   )
 }
-

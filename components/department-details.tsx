@@ -55,9 +55,10 @@ type Employee = {
 
 type DepartmentDetailsProps = {
   departmentId: string | null
+  userId: string | null
 }
 
-export function DepartmentDetails({ departmentId }: DepartmentDetailsProps) {
+export function DepartmentDetails({ departmentId, userId }: DepartmentDetailsProps) {
   const [department, setDepartment] = useState<Department | null>(null)
   const [departmentEmployees, setDepartmentEmployees] = useState<Employee[]>([])
   const [allEmployees, setAllEmployees] = useState<Employee[]>([])
@@ -76,9 +77,9 @@ export function DepartmentDetails({ departmentId }: DepartmentDetailsProps) {
 
   useEffect(() => {
     const loadDepartment = async () => {
-      if (!departmentId) return
+      if (!departmentId || !userId) return
 
-      const departmentDoc = doc(db, "departments", departmentId)
+      const departmentDoc = doc(db, "users", userId, "departments", departmentId)
       const departmentSnapshot = await getDoc(departmentDoc)
 
       if (departmentSnapshot.exists()) {
@@ -105,7 +106,7 @@ export function DepartmentDetails({ departmentId }: DepartmentDetailsProps) {
     }
 
     loadDepartment()
-  }, [departmentId])
+  }, [departmentId, userId])
 
   // Initialize with sample employees if none exist
   useEffect(() => {
