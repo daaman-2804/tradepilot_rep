@@ -29,7 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { db } from "@/src/firebase"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, collection, getDocs, setDoc } from "firebase/firestore"
 
 type Department = {
   id: string
@@ -42,7 +42,7 @@ type Department = {
 }
 
 type Employee = {
-  id: number
+  id: string
   name: string
   avatar: string
   title: string
@@ -66,7 +66,7 @@ export function DepartmentDetails({ departmentId, userId }: DepartmentDetailsPro
   const [showEditDepartmentModal, setShowEditDepartmentModal] = useState(false)
   const [showAddEmployeeModal, setShowAddEmployeeModal] = useState(false)
   const [showDeleteDepartmentDialog, setShowDeleteDepartmentDialog] = useState(false)
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null)
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
 
   const [editDepartment, setEditDepartment] = useState({
     name: "",
@@ -91,12 +91,18 @@ export function DepartmentDetails({ departmentId, userId }: DepartmentDetailsPro
           manager: departmentSnapshot.data().manager,
         })
 
-        // Load all employees
-        const allEmployeesData = JSON.parse(localStorage.getItem("employees") || "[]")
-        setAllEmployees(allEmployeesData)
+        // Load all employees from Firestore
+        const employeesCollection = collection(db, "users", userId, "employees")
+        const employeeSnapshot = await getDocs(employeesCollection)
+        const employeeList = employeeSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Employee[]
+
+        setAllEmployees(employeeList)
 
         // Filter employees for this department
-        const departmentEmployeesData = allEmployeesData.filter(
+        const departmentEmployeesData = employeeList.filter(
           (employee: Employee) => employee.department === departmentSnapshot.data().name,
         )
         setDepartmentEmployees(departmentEmployeesData)
@@ -108,111 +114,18 @@ export function DepartmentDetails({ departmentId, userId }: DepartmentDetailsPro
     loadDepartment()
   }, [departmentId, userId])
 
-  // Initialize with sample employees if none exist
-  useEffect(() => {
-    const existingEmployees = JSON.parse(localStorage.getItem("employees") || "[]")
+  const handleEditDepartment = async () => {
+    if (!department || !userId) return
 
-    if (existingEmployees.length === 0) {
-      const sampleEmployees = [
-        {
-          id: 1,
-          name: "Anatoly Belik",
-          avatar: "/placeholder.svg?height=40&width=40",
-          title: "Head of Design",
-          department: "Unassigned",
-          location: "Stockholm",
-          salary: "$1,350",
-          startDate: "Mar 13, 2023",
-          status: "Active",
-        },
-        {
-          id: 2,
-          name: "Ksenia Bator",
-          avatar: "/placeholder.svg?height=40&width=40",
-          title: "Fullstack Engineer",
-          department: "Unassigned",
-          location: "Miami",
-          salary: "$1,500",
-          startDate: "Oct 13, 2023",
-          status: "Active",
-        },
-        {
-          id: 3,
-          name: "Bogdan Nikitin",
-          avatar: "/placeholder.svg?height=40&width=40",
-          title: "Mobile Lead",
-          department: "Unassigned",
-          location: "Kyiv",
-          salary: "$2,600",
-          startDate: "Nov 4, 2023",
-          status: "Active",
-        },
-        {
-          id: 4,
-          name: "Arsen Yatsenko",
-          avatar: "/placeholder.svg?height=40&width=40",
-          title: "Sales Manager",
-          department: "Unassigned",
-          location: "Ottawa",
-          salary: "$900",
-          startDate: "Sep 4, 2021",
-          status: "Active",
-        },
-        {
-          id: 5,
-          name: "Daria Yurchenko",
-          avatar: "/placeholder.svg?height=40&width=40",
-          title: "Network Engineer",
-          department: "Unassigned",
-          location: "Sao Paulo",
-          salary: "$1,000",
-          startDate: "Feb 21, 2023",
-          status: "Active",
-        },
-      ]
-
-      localStorage.setItem("employees", JSON.stringify(sampleEmployees))
-      setAllEmployees(sampleEmployees)
-    }
-  }, [])
-
-  const handleEditDepartment = () => {
-    if (!department) return
-
-    // Get all departments
-    const departments = JSON.parse(localStorage.getItem("departments") || "[]")
-
-    // Find and update the current department
-    const updatedDepartments = departments.map((dept: Department) => {
-      if (dept.id === department.id) {
-        return {
-          ...dept,
-          name: editDepartment.name,
-          description: editDepartment.description,
-          budget: editDepartment.budget.startsWith("$") ? editDepartment.budget : `$${editDepartment.budget}`,
-          manager: editDepartment.manager,
-        }
-      }
-      return dept
+    // Update department in Firestore
+    const departmentDoc = doc(db, "users", userId, "departments", department.id)
+    await setDoc(departmentDoc, {
+      ...department,
+      name: editDepartment.name,
+      description: editDepartment.description,
+      budget: editDepartment.budget.startsWith("$") ? editDepartment.budget : `$${editDepartment.budget}`,
+      manager: editDepartment.manager,
     })
-
-    // Save updated departments
-    localStorage.setItem("departments", JSON.stringify(updatedDepartments))
-
-    // Update employees if department name changed
-    if (editDepartment.name !== department.name) {
-      const allEmployeesData = JSON.parse(localStorage.getItem("employees") || "[]")
-      const updatedEmployees = allEmployeesData.map((employee: Employee) => {
-        if (employee.department === department.name) {
-          return {
-            ...employee,
-            department: editDepartment.name,
-          }
-        }
-        return employee
-      })
-      localStorage.setItem("employees", JSON.stringify(updatedEmployees))
-    }
 
     // Notify components of the update
     window.dispatchEvent(new Event("departmentsUpdated"))
@@ -221,21 +134,15 @@ export function DepartmentDetails({ departmentId, userId }: DepartmentDetailsPro
     setShowEditDepartmentModal(false)
   }
 
-  const handleDeleteDepartment = () => {
-    if (!department) return
+  const handleDeleteDepartment = async () => {
+    if (!department || !userId) return
 
-    // Get all departments
-    const departments = JSON.parse(localStorage.getItem("departments") || "[]")
-
-    // Filter out the current department
-    const updatedDepartments = departments.filter((dept: Department) => dept.id !== department.id)
-
-    // Save updated departments
-    localStorage.setItem("departments", JSON.stringify(updatedDepartments))
+    // Delete department from Firestore
+    const departmentDoc = doc(db, "users", userId, "departments", department.id)
+    await setDoc(departmentDoc, { deleted: true }) // Mark as deleted or remove as needed
 
     // Update employees to "Unassigned" department
-    const allEmployeesData = JSON.parse(localStorage.getItem("employees") || "[]")
-    const updatedEmployees = allEmployeesData.map((employee: Employee) => {
+    const allEmployeesData = allEmployees.map((employee: Employee) => {
       if (employee.department === department.name) {
         return {
           ...employee,
@@ -244,7 +151,12 @@ export function DepartmentDetails({ departmentId, userId }: DepartmentDetailsPro
       }
       return employee
     })
-    localStorage.setItem("employees", JSON.stringify(updatedEmployees))
+
+    // Save updated employees back to Firestore
+    allEmployeesData.forEach(async (employee) => {
+      const employeeDoc = doc(db, "users", userId, "employees", employee.id)
+      await setDoc(employeeDoc, employee)
+    })
 
     // Notify components of the update
     window.dispatchEvent(new Event("departmentsUpdated"))
@@ -253,14 +165,11 @@ export function DepartmentDetails({ departmentId, userId }: DepartmentDetailsPro
     setShowDeleteDepartmentDialog(false)
   }
 
-  const handleAddEmployeeToDepartment = (employeeId: number) => {
-    if (!department) return
+  const handleAddEmployeeToDepartment = async (employeeId: string) => {
+    if (!department || !userId) return
 
-    // Get all employees
-    const allEmployeesData = JSON.parse(localStorage.getItem("employees") || "[]")
-
-    // Find and update the selected employee
-    const updatedEmployees = allEmployeesData.map((employee: Employee) => {
+    // Update the selected employee's department
+    const updatedEmployees = allEmployees.map((employee: Employee) => {
       if (employee.id === employeeId) {
         return {
           ...employee,
@@ -270,39 +179,30 @@ export function DepartmentDetails({ departmentId, userId }: DepartmentDetailsPro
       return employee
     })
 
-    // Save updated employees
-    localStorage.setItem("employees", JSON.stringify(updatedEmployees))
+    // Save updated employees back to Firestore
+    updatedEmployees.forEach(async (employee) => {
+      const employeeDoc = doc(db, "users", userId, "employees", employee.id)
+      await setDoc(employeeDoc, employee)
+    })
 
     // Update department employee count
-    const departments = JSON.parse(localStorage.getItem("departments") || "[]")
-    const updatedDepartments = departments.map((dept: Department) => {
-      if (dept.id === department.id) {
-        return {
-          ...dept,
-          employeeCount: dept.employeeCount + 1,
-        }
-      }
-      return dept
-    })
-    localStorage.setItem("departments", JSON.stringify(updatedDepartments))
+    const updatedDepartmentCount = department.employeeCount + 1
+    const departmentDoc = doc(db, "users", userId, "departments", department.id)
+    await setDoc(departmentDoc, { ...department, employeeCount: updatedDepartmentCount })
 
     // Update local state
     setDepartmentEmployees(updatedEmployees.filter((employee: Employee) => employee.department === department.name))
     setDepartment({
       ...department,
-      employeeCount: department.employeeCount + 1,
+      employeeCount: updatedDepartmentCount,
     })
-
-    // Notify components of the updates
-    window.dispatchEvent(new Event("departmentsUpdated"))
-    window.dispatchEvent(new Event("employeesUpdated"))
 
     // Close the modal and reset selection
     setShowAddEmployeeModal(false)
     setSelectedEmployeeId(null)
   }
 
-  const handleRemoveEmployeeFromDepartment = (employeeId: number) => {
+  const handleRemoveEmployeeFromDepartment = (employeeId: string) => {
     if (!department) return
 
     // Get all employees
