@@ -9,13 +9,40 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BarChart, LineChart, PieChart } from "@/components/ui/chart"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+// Firestore imports
+import { collection, onSnapshot, query } from "firebase/firestore"
+import { db } from "@/src/firebase" // Ensure you have this firebase config file
+import { getAuth } from "firebase/auth"
+import { ClientPage } from "@/components/client-page"
+
+type Invoice = {
+  id: string
+  invoiceNumber: string
+  buyerName: string
+  amount: string
+  date: string
+  userId: string
+}
+
+type Client = {
+  id: string
+  name: string
+  company: string
+  userId: string
+}
+
+type Employee = {
+  id: string
+  userId: string
+}
+
 type DashboardData = {
   totalRevenue: number
   totalInvoices: number
   totalClients: number
   totalEmployees: number
-  recentInvoices: any[]
-  recentClients: any[]
+  recentInvoices: Invoice[]
+  recentClients: Client[]
   monthlyRevenue: number[]
   categoryData: {
     labels: string[]
@@ -28,32 +55,45 @@ export function DashboardPage() {
     totalRevenue: 0,
     totalInvoices: 0,
     totalClients: 0,
-    totalEmployees: 6, // Default from our existing data
+    totalEmployees: 0,
     recentInvoices: [],
     recentClients: [],
-    monthlyRevenue: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    monthlyRevenue: Array(12).fill(0),
     categoryData: {
       labels: ["Products", "Services", "Subscriptions", "Support", "Other"],
-      data: [0, 0, 0, 0, 0],
+      data: Array(5).fill(0),
     },
   })
 
+  const handleClientsCountChange = (count: number) => {
+    console.log("Client Count Updated:", count); // Log the updated client count
+    setDashboardData(prevData => ({
+      ...prevData,
+      totalClients: count,
+    }))
+  }
+
   useEffect(() => {
-    // Load data from localStorage
-    const loadDashboardData = () => {
-      // Get invoices
-      const invoices = JSON.parse(localStorage.getItem("invoices") || "[]")
+    const auth = getAuth()
+    const user = auth.currentUser
+    const userId = user?.uid
 
-      // Get clients
-      const clients = JSON.parse(localStorage.getItem("clients") || "[]")
+    const invoicesQuery = query(collection(db, `users/${userId}/invoices`))
+    const clientsQuery = query(collection(db, `users/${userId}/clients`))
+    const employeesQuery = query(collection(db, `users/${userId}/employees`))
 
-      // Get employees
-      const employees = JSON.parse(localStorage.getItem("employees") || "[]")
-      const totalEmployees = employees.length > 0 ? employees.length : 6 // Use default if no employees
+    // Listeners for real-time updates
+    const unsubscribeInvoices = onSnapshot(invoicesQuery, (snapshot) => {
+      const invoices: Invoice[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Invoice))
+
+      console.log("Fetched Invoices:", invoices)
 
       // Calculate total revenue
       let totalRevenue = 0
-      invoices.forEach((invoice: any) => {
+      invoices.forEach((invoice) => {
         const amount = Number.parseFloat(invoice.amount.replace(/[^0-9.-]+/g, ""))
         if (!isNaN(amount)) {
           totalRevenue += amount
@@ -62,7 +102,7 @@ export function DashboardPage() {
 
       // Calculate monthly revenue
       const monthlyRevenue = Array(12).fill(0)
-      invoices.forEach((invoice: any) => {
+      invoices.forEach((invoice) => {
         try {
           const date = new Date(invoice.date)
           const month = date.getMonth()
@@ -76,43 +116,45 @@ export function DashboardPage() {
         }
       })
 
-      // Generate category data
-      const categories = ["Products", "Services", "Subscriptions", "Support", "Other"]
-      const categoryData = {
-        labels: categories,
-        data: categories.map(() => Math.floor(Math.random() * 5000) + 1000),
-      }
-
-      // Update dashboard data
-      setDashboardData({
+      setDashboardData(prevData => ({
+        ...prevData,
         totalRevenue,
         totalInvoices: invoices.length,
-        totalClients: clients.length,
-        totalEmployees,
         recentInvoices: invoices.slice(0, 5),
-        recentClients: clients.slice(0, 5),
-        monthlyRevenue,
-        categoryData,
-      })
-    }
+        monthlyRevenue
+      }))
+    })
 
-    // Load data initially
-    loadDashboardData()
+    const unsubscribeClients = onSnapshot(clientsQuery, (snapshot) => {
+      const clients: Client[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Client))
 
-    // Set up event listeners for updates
-    const handleDataUpdated = () => {
-      loadDashboardData()
-    }
+      setDashboardData(prevData => ({
+        ...prevData,
+        totalClients: clients.length,
+        recentClients: clients.slice(0, 5)
+      }))
+    })
 
-    window.addEventListener("invoicesUpdated", handleDataUpdated)
-    window.addEventListener("clientsUpdated", handleDataUpdated)
-    window.addEventListener("employeesUpdated", handleDataUpdated)
+    const unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
+      const employees: Employee[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Employee))
 
-    // Clean up event listeners
+      setDashboardData(prevData => ({
+        ...prevData,
+        totalEmployees: employees.length
+      }))
+    })
+
+    // Cleanup subscriptions on unmount
     return () => {
-      window.removeEventListener("invoicesUpdated", handleDataUpdated)
-      window.removeEventListener("clientsUpdated", handleDataUpdated)
-      window.removeEventListener("employeesUpdated", handleDataUpdated)
+      unsubscribeInvoices()
+      unsubscribeClients()
+      unsubscribeEmployees()
     }
   }, [])
 
@@ -167,6 +209,10 @@ export function DashboardPage() {
       },
     ],
   }
+
+  const auth = getAuth()
+  const user = auth.currentUser
+  console.log("Current User:", user) // Log the current user
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1565C0] to-[#E3F2FD]">
@@ -264,11 +310,9 @@ export function DashboardPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 p-8">
         <h1 className="text-5xl font-semibold text-white mb-6">Dashboard</h1>
 
-        {/* Main Card Container */}
         <div className="bg-white/10 backdrop-blur-md rounded-3xl shadow-lg border border-white/20 overflow-hidden p-6">
           <Tabs defaultValue="overview" className="space-y-6">
             <TabsList className="bg-white/10 text-white">
