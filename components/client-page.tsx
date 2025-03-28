@@ -124,7 +124,7 @@ export function ClientPage() {
 
           <div className="mt-8">
             <h2 className="text-2xl font-semibold text-white mb-4">Client Analytics</h2>
-            <ClientAnalytics clientId={selectedClientId} />
+            <ClientAnalytics clientId={selectedClientId} userId={currentUser?.uid || null} />
           </div>
         </div>
       </main>

@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, LineChart, PieChart } from "@/components/ui/chart"
-import { subscribeToUserData } from "@/src/firestore" // Import Firestore function
+import { getFirestore, collection, getDocs, query, where } from "firebase/firestore"
 
 type ClientAnalyticsProps = {
   clientId: string | null
+  userId: string | null
 }
 
 // Define the expected type for user data
@@ -17,26 +18,67 @@ type UserData = {
   // Add other properties as needed
 }
 
-export function ClientAnalytics({ clientId }: ClientAnalyticsProps) {
+// Define the expected type for invoices
+type Invoice = {
+  id: string;
+  amount: string | number; // Allow both string and number
+  buyerName: string;
+  date: string; // Ensure this is a string in the correct format
+}
+
+export function ClientAnalytics({ clientId, userId }: ClientAnalyticsProps) {
   const [userData, setUserData] = useState<UserData | null>(null); // Use the defined type
+  const [clientInvoices, setClientInvoices] = useState<Invoice[]>([]) // Use the defined Invoice type
+  const [totalSpent, setTotalSpent] = useState(0)
+  const [invoiceCount, setInvoiceCount] = useState(0)
 
   useEffect(() => {
-    if (!clientId) return;
+    const fetchClientInvoices = async () => {
+      if (!clientId || !userId) return;
 
-    const unsubscribe = subscribeToUserData(clientId, (data: UserData) => { // Explicitly define the type for data
-      setUserData(data);
-      // Process data for charts here
-    });
+      const db = getFirestore();
+      const invoicesCollection = collection(db, "users", userId, "invoices");
+      const invoicesQuery = query(invoicesCollection, where("buyerName", "==", clientId.trim()));
+      const invoicesSnapshot = await getDocs(invoicesQuery);
 
-    return () => unsubscribe();
-  }, [clientId]);
+      const invoices = invoicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Invoice[];
+
+      console.log("Client ID:", clientId); // Log the client ID
+      console.log("Fetched Invoices for Client:", invoices); // Log the fetched invoices
+
+      // Check if invoices are empty
+      if (invoices.length === 0) {
+        console.warn(`No invoices found for client: ${clientId}`);
+      }
+
+      setClientInvoices(invoices);
+
+      // Calculate total spent and invoice count
+      const total = invoices.reduce((sum, invoice) => {
+        // Check if amount is a string and parse it
+        const amount = typeof invoice.amount === 'number' 
+          ? invoice.amount 
+          : parseFloat(invoice.amount.replace(/[^0-9.-]+/g, ""));
+
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0);
+
+      setTotalSpent(total);
+      setInvoiceCount(invoices.length);
+    };
+
+    fetchClientInvoices();
+  }, [clientId, userId]);
 
   const [spendingData, setSpendingData] = useState({
-    labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+    labels: [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ],
     datasets: [
       {
         label: "Monthly Spending",
-        data: [0, 0, 0, 0, 0, 0],
+        data: Array(12).fill(0), // Initialize for all 12 months
         backgroundColor: "rgba(59, 130, 246, 0.5)",
         borderColor: "rgb(59, 130, 246)",
         borderWidth: 2,
@@ -83,99 +125,61 @@ export function ClientAnalytics({ clientId }: ClientAnalyticsProps) {
   })
 
   useEffect(() => {
-    if (!clientId) return
+    if (clientInvoices.length > 0) {
+      const monthlySpending = Array(12).fill(0);
 
-    // Load client data
-    const clients = JSON.parse(localStorage.getItem("clients") || "[]")
-    const client = clients.find((c: any) => c.id === clientId)
+      clientInvoices.forEach((invoice) => {
+        const date = new Date(invoice.date);
+        const month = date.getMonth(); // 0-11 for Jan-Dec
+        const amount = typeof invoice.amount === 'number' 
+          ? invoice.amount 
+          : parseFloat(invoice.amount.replace(/[^0-9.-]+/g, ""));
 
-    if (client) {
-      // Load invoices for this client
-      const allInvoices = JSON.parse(localStorage.getItem("invoices") || "[]")
-      const clientInvoices = allInvoices.filter(
-        (invoice: any) => invoice.buyerName.toLowerCase() === client.name.toLowerCase(),
-      )
+        if (!isNaN(month) && !isNaN(amount)) {
+          monthlySpending[month] += amount;
+        }
+      });
 
-      if (clientInvoices.length > 0) {
-        // Generate random spending data based on invoices
-        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        const monthlySpending = Array(12).fill(0)
+      setSpendingData(prevData => ({
+        ...prevData,
+        datasets: [{
+          ...prevData.datasets[0],
+          data: monthlySpending,
+        }],
+      }));
 
-        clientInvoices.forEach((invoice: any) => {
-          try {
-            const date = new Date(invoice.date)
-            const month = date.getMonth()
-            const amount = Number.parseFloat(invoice.amount.replace(/[^0-9.-]+/g, ""))
+      console.log("Monthly Spending Data:", monthlySpending);
 
-            if (!isNaN(month) && !isNaN(amount)) {
-              monthlySpending[month] += amount
-            }
-          } catch (error) {
-            console.error("Error parsing date or amount:", error)
-          }
-        })
+      // Generate category data (this can be customized based on your needs)
+      const categories = ["Products", "Services", "Subscriptions", "Support", "Other"];
+      const categorySpending = categories.map(() => Math.floor(Math.random() * 5000) + 1000);
 
-        setSpendingData({
-          labels: months,
-          datasets: [
-            {
-              label: "Monthly Spending",
-              data: monthlySpending,
-              backgroundColor: "rgba(59, 130, 246, 0.5)",
-              borderColor: "rgb(59, 130, 246)",
-              borderWidth: 2,
-            },
-          ],
-        })
-
-        // Generate random category data
-        const categories = ["Products", "Services", "Subscriptions", "Support", "Other"]
-        const categorySpending = categories.map(() => Math.floor(Math.random() * 5000) + 1000)
-
-        setCategoryData({
-          labels: categories,
-          datasets: [
-            {
-              label: "Spending by Category",
-              data: categorySpending,
-              backgroundColor: [
-                "rgba(255, 99, 132, 0.5)",
-                "rgba(54, 162, 235, 0.5)",
-                "rgba(255, 206, 86, 0.5)",
-                "rgba(75, 192, 192, 0.5)",
-                "rgba(153, 102, 255, 0.5)",
-              ],
-              borderColor: [
-                "rgba(255, 99, 132, 1)",
-                "rgba(54, 162, 235, 1)",
-                "rgba(255, 206, 86, 1)",
-                "rgba(75, 192, 192, 1)",
-                "rgba(153, 102, 255, 1)",
-              ],
-              borderWidth: 1,
-            },
-          ],
-        })
-
-        // Generate random shipment timeline data
-        const weeks = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6"]
-        const shipmentTimeline = weeks.map(() => Math.floor(Math.random() * 5) + 1)
-
-        setShipmentData({
-          labels: weeks,
-          datasets: [
-            {
-              label: "Shipment Timeline",
-              data: shipmentTimeline,
-              fill: false,
-              borderColor: "rgb(75, 192, 192)",
-              tension: 0.1,
-            },
-          ],
-        })
-      }
+      setCategoryData({
+        labels: categories,
+        datasets: [
+          {
+            label: "Spending by Category",
+            data: categorySpending,
+            backgroundColor: [
+              "rgba(255, 99, 132, 0.5)",
+              "rgba(54, 162, 235, 0.5)",
+              "rgba(255, 206, 86, 0.5)",
+              "rgba(75, 192, 192, 0.5)",
+              "rgba(153, 102, 255, 0.5)",
+            ],
+            borderColor: [
+              "rgba(255, 99, 132, 1)",
+              "rgba(54, 162, 235, 1)",
+              "rgba(255, 206, 86, 1)",
+              "rgba(75, 192, 192, 1)",
+              "rgba(153, 102, 255, 1)",
+            ],
+            borderWidth: 1,
+          },
+        ],
+      });
     }
-  }, [clientId])
+  }, [clientInvoices]);
 
   if (!clientId) {
     return (
@@ -289,6 +293,24 @@ export function ClientAnalytics({ clientId }: ClientAnalyticsProps) {
               },
             }}
           />
+        </CardContent>
+      </Card>
+      <Card className="bg-white/10 backdrop-blur-md border-white/20">
+        <CardHeader>
+          <CardTitle className="text-white">Total Invoices</CardTitle>
+          <CardDescription className="text-white/70">Total number of invoices for this client</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xl font-semibold text-white">{invoiceCount}</p>
+        </CardContent>
+      </Card>
+      <Card className="bg-white/10 backdrop-blur-md border-white/20">
+        <CardHeader>
+          <CardTitle className="text-white">Total Spent</CardTitle>
+          <CardDescription className="text-white/70">Total amount spent by this client</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xl font-semibold text-white">${totalSpent.toFixed(2)}</p>
         </CardContent>
       </Card>
     </div>
