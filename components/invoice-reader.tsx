@@ -64,8 +64,8 @@ export function InvoiceReader() {
         /((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4})/i,
       )
 
-    // Extract shipping address if available
-    const shippingAddressMatch = text.match(/Shipping Address:\s*([^\n]+(?:\n[^\n]+)*)/i)
+    // Extract shipping address correctly, stopping at "Amount Due" or "Payment Method"
+    const shippingAddressMatch = text.match(/Shipping Address:\s*([^\n]*?)(?=\s*Amount Due|Payment Method|Due Date)/i)
 
     // Extract company name if available
     const companyMatch = text.match(/Company Name:\s*([^\n]+)/i) || text.match(/Company:\s*([^\n]+)/i)

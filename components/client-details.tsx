@@ -222,6 +222,45 @@ export function ClientDetails({ clientId, userId }: ClientDetailsProps) {
 
   const lastInvoiceDate = clientInvoices.length > 0 ? new Date(clientInvoices[0].timestamp) : null
 
+  const extractDataFromText = (text: string) => {
+    const invoiceNumberMatch = text.match(/Invoice Number:\s*(INV-\d+)/i) || text.match(/INV-\d+/i);
+    const buyerNameMatch = text.match(/Buyer Name:\s*([^\n]+)/i) || text.match(/Name:\s*([^\n]+)/i);
+    const amountMatch = text.match(/Amount Due:\s*\$?([\d,]+(?:\.\d{2})?)/i) || text.match(/\$\s*([\d,]+(?:\.\d{2})?)/i);
+    const dateMatch =
+        text.match(
+            /Date:\s*((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4})/i,
+        ) ||
+        text.match(
+            /((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4})/i,
+        );
+
+    // Extract shipping address correctly
+    const shippingAddressMatch = text.match(/Shipping Address:\s*([^\n]+),\s*([A-Z]{2})\s*\d{5}/i);
+    
+    // Extract company name if available
+    const companyMatch = text.match(/Company Name:\s*([^\n]+)/i) || text.match(/Company:\s*([^\n]+)/i);
+
+    // Extract email if available
+    const emailMatch =
+        text.match(/Email:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i) ||
+        text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+
+    // Extract phone if available
+    const phoneMatch = text.match(/Phone:\s*\(?(\d{3})\)?[\s-]?(\d{3})[\s-]?(\d{4})/i) || text.match(/Tel:\s*\(?(\d{3})\)?[\s-]?(\d{3})[\s-]?(\d{4})/i);
+
+    return {
+        buyerName: buyerNameMatch ? buyerNameMatch[1].trim() : "Unknown",
+        invoiceNumber: invoiceNumberMatch ? invoiceNumberMatch[1].trim() : "Unknown",
+        amount: amountMatch ? `$${amountMatch[1]}` : "Unknown",
+        date: dateMatch ? dateMatch[1].trim() : "Unknown",
+        shippingAddress: shippingAddressMatch ? `${shippingAddressMatch[1].trim()}, ${shippingAddressMatch[2].trim()}` : "", // Adjusted to capture only the relevant part
+        company: companyMatch ? companyMatch[1].trim() : "",
+        email: emailMatch ? emailMatch[1].trim() : "",
+        phone: phoneMatch ? phoneMatch[0].trim() : "",
+        rawText: text,
+    };
+  };
+
   return (
     <Card className="bg-white/10 backdrop-blur-md border-white/20">
       <CardHeader className="flex flex-row items-center justify-between">
