@@ -68,7 +68,7 @@ export function InvoiceReader() {
     const shippingAddressMatch = text.match(/Shipping Address:\s*([^\n]+(?:\n[^\n]+)*)/i)
 
     // Extract company name if available
-    const companyMatch = text.match(/Company:\s*([^\n]+)/i) || text.match(/Organization:\s*([^\n]+)/i)
+    const companyMatch = text.match(/Company Name:\s*([^\n]+)/i) || text.match(/Company:\s*([^\n]+)/i)
 
     // Extract email if available
     const emailMatch =
@@ -76,7 +76,7 @@ export function InvoiceReader() {
       text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i)
 
     // Extract phone if available
-    const phoneMatch = text.match(/Phone:\s*([\d\s\-$$$$.]+)/i) || text.match(/Tel:\s*([\d\s\-$$$$.]+)/i)
+    const phoneMatch = text.match(/Phone:\s*\(?(\d{3})\)?[\s-]?(\d{3})[\s-]?(\d{4})/i) || text.match(/Tel:\s*\(?(\d{3})\)?[\s-]?(\d{3})[\s-]?(\d{4})/i)
 
     return {
       buyerName: buyerNameMatch ? buyerNameMatch[1].trim() : "Unknown",
@@ -86,7 +86,7 @@ export function InvoiceReader() {
       shippingAddress: shippingAddressMatch ? shippingAddressMatch[1].trim() : "",
       company: companyMatch ? companyMatch[1].trim() : "",
       email: emailMatch ? emailMatch[1].trim() : "",
-      phone: phoneMatch ? phoneMatch[1].trim() : "",
+      phone: phoneMatch ? phoneMatch[0].trim() : "",
       rawText: text,
     }
   }
@@ -126,6 +126,8 @@ export function InvoiceReader() {
         id: Date.now().toString(),
         timestamp: new Date().toISOString(), // Ensure timestamp is stored
         date: extractedData.date, // Add date field for display
+        phone: extractedData.phone || "", // Include phone number
+        company: extractedData.company || "", // Include company name
       };
 
       try {
