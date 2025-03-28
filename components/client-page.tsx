@@ -8,9 +8,12 @@ import { ClientList } from "@/components/client-list"
 import { ClientDetails } from "@/components/client-details"
 import { ClientAnalytics } from "@/components/client-analytics"
 import { useState } from "react"
+import { getAuth } from "firebase/auth"
 
 export function ClientPage() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1565C0] to-[#E3F2FD]">
@@ -111,11 +114,11 @@ export function ClientPage() {
           <div className="grid gap-6 md:grid-cols-3">
             <div className="md:col-span-1">
               <h2 className="text-2xl font-semibold text-white mb-4">Client List</h2>
-              <ClientList onSelectClient={setSelectedClientId} selectedClientId={selectedClientId} />
+              <ClientList onSelectClient={setSelectedClientId} selectedClientName={selectedClientId} />
             </div>
             <div className="md:col-span-2">
               <h2 className="text-2xl font-semibold text-white mb-4">Client Details</h2>
-              <ClientDetails clientId={selectedClientId} />
+              <ClientDetails clientId={selectedClientId} userId={currentUser?.uid || null} />
             </div>
           </div>
 
@@ -128,4 +131,3 @@ export function ClientPage() {
     </div>
   )
 }
-

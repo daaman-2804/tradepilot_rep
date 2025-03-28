@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getAuth } from "firebase/auth"
+import { getFirestore, doc, getDoc, collection, getDocs, query, where } from "firebase/firestore"
 
 export type Client = {
   id: string
@@ -36,6 +38,10 @@ export type Client = {
 type Invoice = {
   id: string
   buyerName: string
+  company: string
+  email: string
+  phone: string
+  shippingAddress: string
   invoiceNumber: string
   amount: string
   date: string
@@ -48,15 +54,17 @@ type Invoice = {
     quantity: number
     price: string
   }>
+  rawText: string
 }
 
 type ClientDetailsProps = {
   clientId: string | null
+  userId: string | null
 }
 
-export function ClientDetails({ clientId }: ClientDetailsProps) {
-  const [client, setClient] = useState<Client | null>(null)
-  const [clientInvoices, setClientInvoices] = useState<Invoice[]>([])
+export function ClientDetails({ clientId, userId }: ClientDetailsProps) {
+  const [client, setClient] = useState<any>(null)
+  const [clientInvoices, setClientInvoices] = useState<any[]>([])
   const [shipments, setShipments] = useState<any[]>([])
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -67,6 +75,10 @@ export function ClientDetails({ clientId }: ClientDetailsProps) {
     phone: client?.phone || "",
     address: client?.address || "",
   })
+
+  const auth = getAuth();
+  const db = getFirestore();
+  const currentUser = auth.currentUser;
 
   // Update form data when client changes
   useEffect(() => {
@@ -80,6 +92,34 @@ export function ClientDetails({ clientId }: ClientDetailsProps) {
       })
     }
   }, [client])
+
+  useEffect(() => {
+    const fetchClientData = async () => {
+      if (!clientId || !userId) return;
+
+      const invoicesCollection = collection(db, "users", userId, "invoices");
+      const invoicesQuery = query(invoicesCollection, where("buyerName", "==", clientId));
+      const invoicesSnapshot = await getDocs(invoicesQuery);
+
+      const invoices = invoicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Invoice[];
+      setClientInvoices(invoices);
+
+      if (invoices.length > 0) {
+        const firstInvoice = invoices[0];
+        const phoneMatch = firstInvoice.rawText.match(/Phone:\s*(.*?)(?:\n|$)/i);
+
+        setClient({
+          name: firstInvoice.buyerName,
+          company: firstInvoice.company,
+          email: firstInvoice.email,
+          phone: phoneMatch ? phoneMatch[1].trim() : "",
+          address: firstInvoice.shippingAddress,
+        });
+      }
+    };
+
+    fetchClientData();
+  }, [clientId, userId]);
 
   const handleEditClient = (e: React.FormEvent) => {
     e.preventDefault()
@@ -108,7 +148,7 @@ export function ClientDetails({ clientId }: ClientDetailsProps) {
   }
 
   useEffect(() => {
-    if (!clientId) return
+    if (!clientId || !currentUser) return;
 
     // Load client data
     const clients = JSON.parse(localStorage.getItem("clients") || "[]")
@@ -162,7 +202,7 @@ export function ClientDetails({ clientId }: ClientDetailsProps) {
 
       setShipments(shipmentData)
     }
-  }, [clientId])
+  }, [clientId, currentUser])
 
   if (!client) {
     return (
@@ -497,4 +537,3 @@ export function ClientDetails({ clientId }: ClientDetailsProps) {
     </Card>
   )
 }
-
