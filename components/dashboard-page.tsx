@@ -242,18 +242,7 @@ export function DashboardPage() {
             >
               Departments
             </Link>
-            <Link
-              href="/admin/salary"
-              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-            >
-              Salary
-            </Link>
-            <Link
-              href="/admin/projects"
-              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-            >
-              Projects
-            </Link>
+
             <Link
               href="/admin/invoices"
               className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
@@ -367,7 +356,7 @@ export function DashboardPage() {
                     <Building className="h-4 w-4 text-white/60" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-white">{dashboardData.totalClients}</div>
+                    <div className="text-2xl font-bold text-white">{dashboardData.totalInvoices}</div>
                     <p className="text-xs text-white/70 flex items-center gap-1 mt-1">
                       <ArrowUpRight className="h-3 w-3 text-green-400" />
                       <span className="text-green-400">
@@ -702,4 +691,3 @@ export function DashboardPage() {
     </div>
   )
 }
-

@@ -36,12 +36,7 @@ export function InvoicePage() {
             >
               Departments
             </Link>
-            <Link
-              href="/admin/salary"
-              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-            >
-              Salary
-            </Link>
+
             <Link
               href="/admin/invoices"
               className="text-sm font-medium transition-colors hover:text-gray-900 bg-gray-900 text-white px-3 py-1.5 rounded-full"

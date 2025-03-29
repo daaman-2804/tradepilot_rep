@@ -16,7 +16,6 @@ export function MainNav() {
     { href: `${baseUrl}/employees`, label: "People", icon: Users },
     { href: `${baseUrl}/departments`, label: "Departments", icon: Briefcase },
     { href: `${baseUrl}/salary`, label: "Salary", icon: DollarSign },
-    { href: `${baseUrl}/projects`, label: "Projects", icon: FolderKanban },
     { href: `${baseUrl}/invoices`, label: "Invoices", icon: FileText },
     { href: `${baseUrl}/clients`, label: "Clients", icon: Building },
   ]

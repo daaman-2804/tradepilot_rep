@@ -190,12 +190,6 @@ export function PeoplePageExact() {
               Departments
             </Link>
             <Link
-              href="/admin/salary"
-              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-            >
-              Salary
-            </Link>
-            <Link
               href="/admin/invoices"
               className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
             >
